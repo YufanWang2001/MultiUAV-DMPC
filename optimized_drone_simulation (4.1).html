@@ -1,0 +1,2246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>优化版多无人机DMPC路径规划与避障仿真</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 30%, #16213e 70%, #0f3460 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        .panel {
+            position: absolute;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.95);
+            border-radius: 12px;
+            color: white;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(102, 126, 234, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            transition: all 0.3s ease;
+            overflow: hidden;
+            cursor: move;
+            user-select: none;
+            min-width: 240px;
+            max-width: 280px;
+        }
+        
+        .panel:hover {
+            border-color: rgba(102, 126, 234, 0.6);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.9);
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: move;
+            background: rgba(102, 126, 234, 0.1);
+        }
+        
+        .panel-header:hover {
+            background: rgba(102, 126, 234, 0.2);
+        }
+        
+        .panel-title {
+            margin: 0;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .panel-toggle {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 50%;
+            font-size: 12px;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .panel-content {
+            padding: 12px 16px;
+            transition: all 0.3s ease;
+            max-height: 800px;
+            opacity: 1;
+            font-size: 12px;
+        }
+        
+        .panel.collapsed .panel-content {
+            max-height: 0;
+            padding: 0 16px;
+            opacity: 0;
+        }
+        
+        .panel.collapsed .panel-toggle {
+            transform: rotate(180deg);
+        }
+        
+        #controls {
+            top: 20px;
+            left: 20px;
+        }
+        
+        #info {
+            top: 20px;
+            right: 20px;
+        }
+        
+        #performancePanel {
+            bottom: 20px;
+            left: 20px;
+        }
+        
+        #obstaclePanel {
+            bottom: 20px;
+            right: 20px;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin: 3px 2px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 11px;
+            box-shadow: 0 3px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+        
+        button:active {
+            transform: translateY(-1px);
+        }
+        
+        button.active {
+            background: linear-gradient(45deg, #4CAF50, #8BC34A);
+            box-shadow: 0 3px 12px rgba(76, 175, 80, 0.4);
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin: 8px 0;
+            appearance: none;
+            height: 4px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.2);
+            outline: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+        }
+        
+        .info-section {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .drone-info {
+            margin: 6px 0;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            border-left: 3px solid;
+            transition: all 0.3s ease;
+            font-size: 11px;
+        }
+        
+        .drone-info:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+        
+        .status {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .warning {
+            color: #ff6b6b;
+            font-weight: bold;
+        }
+        
+        .metric-bar {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin: 4px 0;
+            overflow: hidden;
+        }
+        
+        .metric-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 11px;
+        }
+        
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        h3, h4 {
+            margin: 0 0 8px 0;
+            color: #ffffff;
+            font-size: 12px;
+        }
+        
+        .progress-container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px;
+            margin: 8px 0;
+        }
+        
+        .fps-indicator {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px 16px;
+            border-radius: 16px;
+            font-weight: bold;
+            color: #b2521b;
+            border: 2px solid rgba(76, 175, 80, 0.3);
+            z-index: 150;
+            font-size: 14px;
+        }
+        
+        .obstacle-type-selector {
+            display: flex;
+            gap: 6px;
+            margin: 8px 0;
+        }
+        
+        .obstacle-type-btn {
+            flex: 1;
+            padding: 6px 4px;
+            font-size: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .obstacle-type-btn.selected {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: 1px solid rgba(102, 126, 234, 0.5);
+        }
+        
+        .color-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        
+        .compact-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 4px 0;
+            font-size: 11px;
+        }
+        
+        .compact-row label {
+            flex: 1;
+            margin-right: 8px;
+        }
+        
+        .compact-row span {
+            min-width: 30px;
+            text-align: right;
+            font-weight: 500;
+        }
+        
+        /* 面板拖动样式 */
+        .panel.dragging {
+            transform: scale(1.02);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.9);
+            z-index: 200;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 1200px) {
+            .panel {
+                max-width: 220px !important;
+                min-width: 200px !important;
+            }
+            
+            .panel-content {
+                padding: 10px 12px;
+                font-size: 11px;
+            }
+            
+            .panel-header {
+                padding: 10px 12px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            #performancePanel, #obstaclePanel {
+                display: none;
+            }
+            
+            .panel {
+                max-width: 180px !important;
+                min-width: 160px !important;
+            }
+            
+            .panel-content {
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="fps-indicator" id="fpsIndicator">FPS: 60</div>
+        
+        <!-- 控制面板 -->
+        <div class="panel" id="controls">
+            <div class="panel-header" onclick="togglePanel('controls')">
+                <h3 class="panel-title">🎮 控制中心</h3>
+                <div class="panel-toggle">▼</div>
+            </div>
+            <div class="panel-content">
+                <button onclick="toggleSimulation()" id="playButton">▶️ 开始仿真</button>
+                <button onclick="resetSimulation()">🔄 重置</button>
+                <button onclick="saveSnapshot()">📸 截图</button>
+                <br><br>
+                
+                <div class="info-section">
+                    <h4>🚁 无人机设置</h4>
+                    <label>数量: <span id="droneCount">4</span></label>
+                    <input type="range" id="droneSlider" min="2" max="12" value="4" oninput="updateDroneCount()">
+                    
+                    <label>最大速度: <span id="maxSpeed">3.0</span> m/s</label>
+                    <input type="range" id="speedSlider" min="1" max="8" step="0.5" value="3" oninput="updateMaxSpeed()">
+                </div>
+                
+                <div class="info-section">
+                    <h4>🧠 DMPC参数</h4>
+                    <label>预测时域: <span id="horizonValue">12</span></label>
+                    <input type="range" id="horizonSlider" min="5" max="25" value="12" oninput="updateHorizon()">
+                    
+                    <label>安全距离: <span id="safetyValue">2.5</span> m</label>
+                    <input type="range" id="safetySlider" min="1" max="5" step="0.1" value="2.5" oninput="updateSafety()">
+                </div>
+                
+                <div class="info-section">
+                    <h4>🌍 环境设置</h4>
+                    <label>风力强度: <span id="windValue">0.5</span></label>
+                    <input type="range" id="windSlider" min="0" max="3" step="0.1" value="0.5" oninput="updateWind()">
+                </div>
+                
+                <button onclick="toggleTrajectory()" id="trajectoryBtn">📈 轨迹</button>
+                <button onclick="toggleAutoRotate()" id="rotateBtn">🌀 旋转</button>
+                <button onclick="toggleFormation()" id="formationBtn">🔗 编队</button>
+            </div>
+        </div>
+        
+        <!-- 信息面板 -->
+        <div class="panel" id="info">
+            <div class="panel-header" onclick="togglePanel('info')">
+                <h3 class="panel-title">📊 仿真状态</h3>
+                <div class="panel-toggle">▼</div>
+            </div>
+            <div class="panel-content">
+                <div id="simulationStatus">
+                    <div class="status">● 系统准备就绪</div>
+                    <div>仿真时间: <span id="simTime">00.0</span>s</div>
+                    <div>物理步长: <span id="timeStep">20</span>ms</div>
+                    <div>总路径长度: <span id="totalDistance">51.2</span>m</div>
+                </div>
+                
+                <div class="info-section">
+                    <h4>🎯 任务进度</h4>
+                    <div id="missionProgress">
+                        <div class="progress-container">
+                            <div>整体完成度: <span id="overallProgress">0</span>%</div>
+                            <div class="metric-bar">
+                                <div class="metric-fill" id="progressBar" style="width: 0%; background: linear-gradient(90deg, #4CAF50, #8BC34A);"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h4>🚁 无人机状态</h4>
+                    <div id="droneStatus"></div>
+                </div>
+                
+                <div class="info-section">
+                    <h4>🎨 视觉图例</h4>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #8B4513;"></div>
+                        <span>静态障碍物 (棕色)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #FF4444;"></div>
+                        <span>动态障碍物 (红色)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #4CAF50;"></div>
+                        <span>起始区域</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: #2196F3;"></div>
+                        <span>目标区域</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 性能监控面板 -->
+        <div class="panel" id="performancePanel">
+            <div class="panel-header" onclick="togglePanel('performancePanel')">
+                <h3 class="panel-title">⚡ 性能监控</h3>
+                <div class="panel-toggle">▼</div>
+            </div>
+            <div class="panel-content">
+                <div>渲染时间: <span id="renderTime">16.7</span>ms</div>
+                <div>三角面数: <span id="triangles">2847</span></div>
+                <div>绘制调用: <span id="drawCalls">45</span></div>
+                <div>内存使用: <span id="memoryUsage">28.5</span>MB</div>
+                
+                <div class="info-section">
+                    <h4>🌍 环境参数</h4>
+                    <div>当前风向: <span id="windDirection">东北</span></div>
+                    <div>碰撞检测: <span id="collisionChecks">156</span>/帧</div>
+                    <div>通信包: <span id="commPackets">24</span>/秒</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 障碍物管理面板 -->
+        <div class="panel" id="obstaclePanel">
+            <div class="panel-header" onclick="togglePanel('obstaclePanel')">
+                <h3 class="panel-title">🚧 障碍物管理</h3>
+                <div class="panel-toggle">▼</div>
+            </div>
+            <div class="panel-content">
+                <div class="info-section">
+                    <h4>静态障碍物 <span class="color-indicator" style="background: #8B4513;"></span></h4>
+                    <label>数量: <span id="staticObstacleCount">6</span></label>
+                    <input type="range" id="staticObstacleSlider" min="2" max="15" value="6" oninput="updateStaticObstacles()">
+                    
+                    <div class="obstacle-type-selector">
+                        <button class="obstacle-type-btn selected" onclick="setObstacleType('balanced')" id="balancedBtn">均衡布局</button>
+                        <button class="obstacle-type-btn" onclick="setObstacleType('maze')" id="mazeBtn">迷宫模式</button>
+                        <button class="obstacle-type-btn" onclick="setObstacleType('corridor')" id="corridorBtn">通道模式</button>
+                    </div>
+                </div>
+                
+                <div class="info-section">
+                    <h4>动态障碍物 <span class="color-indicator" style="background: #FF4444;"></span></h4>
+                    <label>当前数量: <span id="dynamicObstacleCount">4</span></label>
+                    <button onclick="addDynamicObstacle()">➕ 添加动态障碍物</button>
+                    <button onclick="clearDynamicObstacles()">🗑️ 清除动态障碍物</button>
+                </div>
+                
+                <div class="info-section">
+                    <h4>障碍物预设</h4>
+                    <button onclick="loadPreset('challenge')" style="width: 100%; margin: 2px 0;">🔥 挑战模式</button>
+                    <button onclick="loadPreset('simple')" style="width: 100%; margin: 2px 0;">🌱 简单模式</button>
+                    <button onclick="loadPreset('random')" style="width: 100%; margin: 2px 0;">🎲 随机模式</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let scene, camera, renderer, animationId;
+        let drones = [];
+        let staticObstacles = [];
+        let dynamicObstacles = [];
+        let trajectoryLines = [];
+        let isRunning = false;
+        let simulationTime = 0;
+        let showTrajectory = true;
+        let autoRotate = false;
+        let formationMode = false;
+        let windForce = new THREE.Vector3(0.5, 0, 0.3);
+        let obstacleLayoutType = 'balanced';
+        
+        // 性能监控
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let fps = 60;
+        
+        // 鼠标控制变量
+        let mouseX = 0, mouseY = 0;
+        let mousePressed = false;
+        let cameraDistance = 55;
+        let cameraAngle = 0;
+        let cameraHeight = 25;
+        
+        // 区域标记
+        let startZoneMarker, targetZoneMarker;
+        
+        // DMPC参数
+        let dmpcParams = {
+            predictionHorizon: 12,
+            controlHorizon: 4,
+            safeDistance: 2.5,
+            communicationRange: 20.0,
+            maxSpeed: 3.0,
+            maxAcceleration: 2.5,
+            formationSpacing: 3.0
+        };
+        
+        // 面板控制函数
+        function togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            panel.classList.toggle('collapsed');
+        }
+        
+        // 颜色配置 - 增强对比度
+        const COLORS = {
+            static_obstacle: 0x2D4A22,           // 深绿色 - 静态障碍物
+            dynamic_obstacle: 0xFF1744,          // 亮红色 - 动态障碍物  
+            static_warning: 0x4CAF50,            // 绿色 - 静态障碍物警告区
+            dynamic_warning: 0xFF5722,           // 橙红色 - 动态障碍物警告区
+            start_zone: 0x4CAF50,                // 绿色 - 起始区域
+            target_zone: 0x2196F3,               // 蓝色 - 目标区域
+            drone_colors: [0xff6b6b, 0x4ecdc4, 0x45b7d1, 0x96ceb4, 0xfeca57, 0xff9ff3, 0x54a0ff, 0x5f27cd, 0x00d2d3, 0xff7675, 0xa29bfe, 0x6c5ce7]
+        };
+        
+        // 无人机类 - 优化版
+        class Drone {
+            constructor(id, position, target) {
+                this.id = id;
+                this.position = position.clone();
+                this.target = target.clone();
+                this.velocity = new THREE.Vector3(0, 0, 0);
+                this.acceleration = new THREE.Vector3(0, 0, 0);
+                this.trajectory = [position.clone()];
+                this.predictedPath = [];
+                this.neighbors = [];
+                this.controlInputs = [];
+                this.reached = false;
+                this.pathLength = 0;
+                this.startTime = simulationTime;
+                this.formationTarget = null;
+                
+                // 创建无人机几何体
+                this.geometry = new THREE.Group();
+                this.createDroneModel();
+                scene.add(this.geometry);
+                
+                // 创建轨迹线
+                this.trajectoryGeometry = new THREE.BufferGeometry();
+                this.trajectoryMaterial = new THREE.LineBasicMaterial({ 
+                    color: this.getColor(),
+                    opacity: 0.7,
+                    transparent: true,
+                    linewidth: 2
+                });
+                this.trajectoryLine = new THREE.Line(this.trajectoryGeometry, this.trajectoryMaterial);
+                scene.add(this.trajectoryLine);
+                
+                // 创建预测路径显示
+                this.predictionGeometry = new THREE.BufferGeometry();
+                this.predictionMaterial = new THREE.LineBasicMaterial({ 
+                    color: this.getColor(),
+                    opacity: 0.3,
+                    transparent: true,
+                    linewidth: 1
+                });
+                this.predictionLine = new THREE.Line(this.predictionGeometry, this.predictionMaterial);
+                scene.add(this.predictionLine);
+            }
+            
+            createDroneModel() {
+                // 主体机身 - 更加真实的四旋翼设计
+                const bodyGeometry = new THREE.BoxGeometry(1.0, 0.3, 1.0);
+                const bodyMaterial = new THREE.MeshPhongMaterial({ 
+                    color: this.getColor(),
+                    shininess: 120,
+                    specular: 0x444444
+                });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                
+                // 机臂 (X型配置)
+                const armGeometry = new THREE.BoxGeometry(1.8, 0.1, 0.1);
+                const armMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x2c2c2c,
+                    shininess: 50
+                });
+                
+                const arm1 = new THREE.Mesh(armGeometry, armMaterial);
+                arm1.rotation.z = Math.PI / 4;
+                const arm2 = new THREE.Mesh(armGeometry, armMaterial);
+                arm2.rotation.z = -Math.PI / 4;
+                
+                this.geometry.add(arm1);
+                this.geometry.add(arm2);
+                
+                // 电机和螺旋桨
+                const propPositions = [
+                    { x: 1.0, z: 1.0 },
+                    { x: -1.0, z: 1.0 },
+                    { x: -1.0, z: -1.0 },
+                    { x: 1.0, z: -1.0 }
+                ];
+                
+                this.propellers = [];
+                for (let i = 0; i < 4; i++) {
+                    const pos = propPositions[i];
+                    
+                    // 电机
+                    const motorGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.2, 8);
+                    const motorMaterial = new THREE.MeshPhongMaterial({ color: 0x444444 });
+                    const motor = new THREE.Mesh(motorGeometry, motorMaterial);
+                    motor.position.set(pos.x, 0.25, pos.z);
+                    
+                    // 螺旋桨叶片
+                    const propGroup = new THREE.Group();
+                    for (let j = 0; j < 2; j++) {
+                        const bladeGeometry = new THREE.BoxGeometry(1.2, 0.03, 0.12);
+                        const bladeMaterial = new THREE.MeshPhongMaterial({ 
+                            color: 0x888888,
+                            transparent: true,
+                            opacity: 0.8
+                        });
+                        const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+                        blade.rotation.y = j * Math.PI / 2;
+                        propGroup.add(blade);
+                    }
+                    propGroup.position.set(pos.x, 0.4, pos.z);
+                    
+                    this.propellers.push(propGroup);
+                    this.geometry.add(motor);
+                    this.geometry.add(propGroup);
+                }
+                
+                // 起落架
+                const landingGearGeometry = new THREE.BoxGeometry(0.06, 0.4, 0.06);
+                const landingGearMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
+                
+                for (let i = 0; i < 4; i++) {
+                    const pos = propPositions[i];
+                    const gear = new THREE.Mesh(landingGearGeometry, landingGearMaterial);
+                    gear.position.set(pos.x * 0.7, -0.3, pos.z * 0.7);
+                    this.geometry.add(gear);
+                }
+                
+                // LED状态指示灯
+                const ledGeometry = new THREE.SphereGeometry(0.08, 8, 6);
+                const ledMaterial = new THREE.MeshPhongMaterial({ 
+                    color: this.getColor(),
+                    emissive: this.getColor(),
+                    emissiveIntensity: 0.5
+                });
+                const led = new THREE.Mesh(ledGeometry, ledMaterial);
+                led.position.set(0, 0.2, 0.6);
+                
+                // 云台和摄像头
+                const gimbalGeometry = new THREE.SphereGeometry(0.12, 8, 6);
+                const gimbalMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+                const gimbal = new THREE.Mesh(gimbalGeometry, gimbalMaterial);
+                gimbal.position.set(0, -0.2, 0);
+                
+                this.geometry.add(body);
+                this.geometry.add(led);
+                this.geometry.add(gimbal);
+                this.geometry.position.copy(this.position);
+                
+                // 目标指示器
+                const targetGeometry = new THREE.RingGeometry(0.2, 0.4, 8);
+                const targetMaterial = new THREE.MeshBasicMaterial({ 
+                    color: this.getColor(),
+                    opacity: 0.6,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+                this.targetIndicator = new THREE.Mesh(targetGeometry, targetMaterial);
+                this.targetIndicator.position.copy(this.target);
+                this.targetIndicator.rotation.x = -Math.PI / 2;
+                scene.add(this.targetIndicator);
+                
+                // 添加动态目标连线
+                this.createTargetLine();
+            }
+            
+            createTargetLine() {
+                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    this.position,
+                    this.target
+                ]);
+                const lineMaterial = new THREE.LineDashedMaterial({ 
+                    color: this.getColor(),
+                    opacity: 0.4,
+                    transparent: true,
+                    linewidth: 2,
+                    dashSize: 0.5,
+                    gapSize: 0.3
+                });
+                this.targetLine = new THREE.Line(lineGeometry, lineMaterial);
+                this.targetLine.computeLineDistances();
+                scene.add(this.targetLine);
+            }
+            
+            getColor() {
+                return COLORS.drone_colors[this.id % COLORS.drone_colors.length];
+            }
+            
+            // 增强的DMPC算法
+            computeDMPCControl(dt) {
+                this.updateNeighbors();
+                
+                const horizon = dmpcParams.predictionHorizon;
+                const controlHorizon = dmpcParams.controlHorizon;
+                
+                // 计算编队目标
+                if (formationMode) {
+                    this.updateFormationTarget();
+                }
+                
+                this.predictedPath = this.predictFutureStates(horizon, dt);
+                const optimalControl = this.optimizeControl(controlHorizon, dt);
+                this.applyControl(optimalControl, dt);
+                this.updateTrajectory();
+                this.updatePredictionVisualization();
+            }
+            
+            updateFormationTarget() {
+                if (drones.length > 1) {
+                    const leadDrone = drones[0];
+                    if (this.id === 0) {
+                        this.formationTarget = this.target.clone();
+                    } else {
+                        const angle = (this.id * 2 * Math.PI) / drones.length;
+                        const offset = new THREE.Vector3(
+                            Math.cos(angle) * dmpcParams.formationSpacing,
+                            0,
+                            Math.sin(angle) * dmpcParams.formationSpacing
+                        );
+                        this.formationTarget = leadDrone.position.clone().add(offset);
+                    }
+                }
+            }
+            
+            updateNeighbors() {
+                this.neighbors = [];
+                for (let drone of drones) {
+                    if (drone.id !== this.id) {
+                        const distance = this.position.distanceTo(drone.position);
+                        if (distance < dmpcParams.communicationRange) {
+                            this.neighbors.push({
+                                drone: drone,
+                                distance: distance,
+                                relativeVelocity: drone.velocity.clone().sub(this.velocity)
+                            });
+                        }
+                    }
+                }
+            }
+            
+            predictFutureStates(horizon, dt) {
+                const predictedStates = [];
+                let currentPos = this.position.clone();
+                let currentVel = this.velocity.clone();
+                
+                for (let i = 0; i < horizon; i++) {
+                    const predictedAcc = this.computePredictedAcceleration(currentPos, currentVel, i);
+                    currentVel.add(predictedAcc.clone().multiplyScalar(dt));
+                    
+                    // 限制速度
+                    if (currentVel.length() > dmpcParams.maxSpeed) {
+                        currentVel.normalize().multiplyScalar(dmpcParams.maxSpeed);
+                    }
+                    
+                    currentPos.add(currentVel.clone().multiplyScalar(dt));
+                    
+                    predictedStates.push({
+                        position: currentPos.clone(),
+                        velocity: currentVel.clone(),
+                        acceleration: predictedAcc
+                    });
+                }
+                
+                return predictedStates;
+            }
+            
+            computePredictedAcceleration(position, velocity, step) {
+                const acceleration = new THREE.Vector3();
+                
+                // 目标吸引力
+                const targetPos = formationMode && this.formationTarget ? this.formationTarget : this.target;
+                const targetForce = targetPos.clone().sub(position).normalize().multiplyScalar(3.0);
+                acceleration.add(targetForce);
+                
+                // 障碍物排斥力
+                const obstacleForce = this.computeObstacleForce(position);
+                acceleration.add(obstacleForce);
+                
+                // 邻居避障力
+                const neighborForce = this.computeAdvancedNeighborForce(position, velocity, step);
+                acceleration.add(neighborForce);
+                
+                // 风力影响
+                acceleration.add(windForce.clone().multiplyScalar(0.3));
+                
+                // 速度阻尼
+                const dampingForce = velocity.clone().multiplyScalar(-0.3);
+                acceleration.add(dampingForce);
+                
+                // 限制最大加速度
+                if (acceleration.length() > dmpcParams.maxAcceleration) {
+                    acceleration.normalize().multiplyScalar(dmpcParams.maxAcceleration);
+                }
+                
+                return acceleration;
+            }
+            
+            computeAdvancedNeighborForce(position, velocity, step) {
+                const force = new THREE.Vector3();
+                
+                for (let neighbor of this.neighbors) {
+                    let neighborPos = neighbor.drone.position.clone();
+                    let neighborVel = neighbor.drone.velocity.clone();
+                    
+                    // 预测邻居未来位置
+                    if (step > 0 && neighbor.drone.predictedPath[step - 1]) {
+                        neighborPos = neighbor.drone.predictedPath[step - 1].position;
+                        neighborVel = neighbor.drone.predictedPath[step - 1].velocity;
+                    }
+                    
+                    const distance = position.distanceTo(neighborPos);
+                    const minDistance = dmpcParams.safeDistance;
+                    
+                    if (distance < minDistance) {
+                        // 基本排斥力
+                        const repulsionForce = position.clone().sub(neighborPos).normalize();
+                        const strength = (minDistance - distance) * 4;
+                        
+                        // 考虑相对速度的避障
+                        const relativeVel = velocity.clone().sub(neighborVel);
+                        const collisionTime = distance / relativeVel.length();
+                        
+                        if (collisionTime < 2.0 && collisionTime > 0) {
+                            repulsionForce.multiplyScalar(strength * (2.0 / collisionTime));
+                        } else {
+                            repulsionForce.multiplyScalar(strength);
+                        }
+                        
+                        force.add(repulsionForce);
+                    }
+                }
+                
+                return force;
+            }
+            
+            computeObstacleForce(position) {
+                const force = new THREE.Vector3();
+                
+                // 静态障碍物
+                for (let obstacle of staticObstacles) {
+                    const distance = position.distanceTo(obstacle.position);
+                    const minDistance = obstacle.radius + dmpcParams.safeDistance;
+                    
+                    if (distance < minDistance * 1.5) {
+                        const repulsionForce = position.clone().sub(obstacle.position).normalize();
+                        const strength = Math.max(0, (minDistance - distance) * 6);
+                        force.add(repulsionForce.multiplyScalar(strength));
+                    }
+                }
+                
+                // 动态障碍物 - 预测性避障
+                for (let obstacle of dynamicObstacles) {
+                    const futurePos = obstacle.position.clone().add(obstacle.velocity.clone().multiplyScalar(2.0));
+                    const distance = position.distanceTo(futurePos);
+                    const minDistance = obstacle.radius + dmpcParams.safeDistance;
+                    
+                    if (distance < minDistance * 2) {
+                        const repulsionForce = position.clone().sub(futurePos).normalize();
+                        const strength = Math.max(0, (minDistance * 2 - distance) * 8);
+                        force.add(repulsionForce.multiplyScalar(strength));
+                    }
+                }
+                
+                return force;
+            }
+            
+            optimizeControl(controlHorizon, dt) {
+                const controlInputs = [];
+                
+                for (let i = 0; i < controlHorizon; i++) {
+                    const predictedState = this.predictedPath[i];
+                    if (predictedState) {
+                        controlInputs.push(predictedState.acceleration.clone());
+                    }
+                }
+                
+                return controlInputs;
+            }
+            
+            applyControl(controlInputs, dt) {
+                if (controlInputs.length > 0) {
+                    this.acceleration.copy(controlInputs[0]);
+                    
+                    // 更新速度
+                    this.velocity.add(this.acceleration.clone().multiplyScalar(dt));
+                    
+                    // 限制最大速度
+                    if (this.velocity.length() > dmpcParams.maxSpeed) {
+                        this.velocity.normalize().multiplyScalar(dmpcParams.maxSpeed);
+                    }
+                    
+                    // 更新位置
+                    const oldPosition = this.position.clone();
+                    this.position.add(this.velocity.clone().multiplyScalar(dt));
+                    
+                    // 计算路径长度
+                    this.pathLength += oldPosition.distanceTo(this.position);
+                    
+                    // 边界约束 - 扩大边界范围
+                    this.position.x = Math.max(-50, Math.min(50, this.position.x));
+                    this.position.y = Math.max(0.5, Math.min(40, this.position.y));
+                    this.position.z = Math.max(-50, Math.min(50, this.position.z));
+                    
+                    // 更新几何体位置
+                    this.geometry.position.copy(this.position);
+                    
+                    // 螺旋桨动画
+                    if (this.propellers) {
+                        const throttle = this.acceleration.length() / dmpcParams.maxAcceleration;
+                        const baseSpeed = 0.2 + throttle * 0.8;
+                        const speedVariation = this.velocity.length() / dmpcParams.maxSpeed;
+                        
+                        for (let i = 0; i < this.propellers.length; i++) {
+                            const direction = (i % 2 === 0) ? 1 : -1;
+                            const rotationSpeed = baseSpeed + speedVariation * 0.3;
+                            this.propellers[i].rotation.y += rotationSpeed * direction;
+                        }
+                    }
+                    
+                    // 根据运动状态调整姿态
+                    if (this.velocity.length() > 0.1) {
+                        const pitch = -this.velocity.y * 0.15;
+                        const yaw = Math.atan2(this.velocity.x, this.velocity.z);
+                        const roll = -this.velocity.x * 0.1;
+                        
+                        this.geometry.rotation.x = THREE.MathUtils.lerp(this.geometry.rotation.x, pitch, 0.1);
+                        this.geometry.rotation.y = THREE.MathUtils.lerp(this.geometry.rotation.y, yaw, 0.1);
+                        this.geometry.rotation.z = THREE.MathUtils.lerp(this.geometry.rotation.z, roll, 0.1);
+                    }
+                    
+                    // 更新目标连线
+                    if (this.targetLine) {
+                        const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                            this.position,
+                            this.target
+                        ]);
+                        this.targetLine.geometry.dispose();
+                        this.targetLine.geometry = lineGeometry;
+                        this.targetLine.computeLineDistances();
+                    }
+                    
+                    // 目标指示器动画
+                    if (this.targetIndicator) {
+                        this.targetIndicator.rotation.z += 0.02;
+                        this.targetIndicator.material.opacity = 0.4 + Math.sin(simulationTime * 3) * 0.2;
+                    }
+                    
+                    // 检查是否到达目标
+                    if (this.position.distanceTo(this.target) < 2.0) {
+                        this.reached = true;
+                    }
+                }
+            }
+            
+            updateTrajectory() {
+                this.trajectory.push(this.position.clone());
+                // 移除长度限制，保留完整轨迹
+                // if (this.trajectory.length > 300) {
+                //     this.trajectory.shift();
+                // }
+                
+                // 更新轨迹线
+                if (showTrajectory && this.trajectory.length > 1) {
+                    const positions = new Float32Array(this.trajectory.length * 3);
+                    for (let i = 0; i < this.trajectory.length; i++) {
+                        positions[i * 3] = this.trajectory[i].x;
+                        positions[i * 3 + 1] = this.trajectory[i].y;
+                        positions[i * 3 + 2] = this.trajectory[i].z;
+                    }
+                    this.trajectoryGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                    this.trajectoryLine.visible = true;
+                } else {
+                    this.trajectoryLine.visible = false;
+                }
+            }
+            
+            updatePredictionVisualization() {
+                if (this.predictedPath.length > 1) {
+                    const positions = new Float32Array(this.predictedPath.length * 3);
+                    for (let i = 0; i < this.predictedPath.length; i++) {
+                        positions[i * 3] = this.predictedPath[i].position.x;
+                        positions[i * 3 + 1] = this.predictedPath[i].position.y;
+                        positions[i * 3 + 2] = this.predictedPath[i].position.z;
+                    }
+                    this.predictionGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                    this.predictionLine.visible = showTrajectory;
+                } else {
+                    this.predictionLine.visible = false;
+                }
+            }
+            
+            getProgress() {
+                const totalDistance = this.position.distanceTo(this.target) + this.pathLength;
+                const initialDistance = this.trajectory[0].distanceTo(this.target);
+                return Math.max(0, Math.min(100, (1 - this.position.distanceTo(this.target) / initialDistance) * 100));
+            }
+        }
+        
+        // 优化的静态障碍物类
+        class StaticObstacle {
+            constructor(position, radius, type = 'sphere') {
+                this.position = position.clone();
+                this.radius = radius;
+                this.type = type;
+                
+                let geometry;
+                if (type === 'box') {
+                    geometry = new THREE.BoxGeometry(radius * 2, radius * 2, radius * 2);
+                } else {
+                    geometry = new THREE.SphereGeometry(radius, 20, 16);
+                }
+                
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: COLORS.static_obstacle,
+                    opacity: 0.9,
+                    transparent: true,
+                    shininess: 30
+                });
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.copy(position);
+                this.mesh.castShadow = true;
+                this.mesh.receiveShadow = true;
+                scene.add(this.mesh);
+                
+                // 警告范围指示器
+                const warningGeometry = new THREE.SphereGeometry(radius + 2, 16, 12);
+                const warningMaterial = new THREE.MeshBasicMaterial({ 
+                    color: COLORS.static_warning,
+                    opacity: 0.08,
+                    transparent: true,
+                    wireframe: true
+                });
+                this.warningMesh = new THREE.Mesh(warningGeometry, warningMaterial);
+                this.warningMesh.position.copy(position);
+                scene.add(this.warningMesh);
+            }
+            
+            dispose() {
+                scene.remove(this.mesh);
+                scene.remove(this.warningMesh);
+                this.mesh.geometry.dispose();
+                this.mesh.material.dispose();
+                this.warningMesh.geometry.dispose();
+                this.warningMesh.material.dispose();
+            }
+        }
+        
+        // 优化的动态障碍物类
+        class DynamicObstacle {
+            constructor(position, radius, velocity) {
+                this.position = position.clone();
+                this.radius = radius;
+                this.velocity = velocity.clone();
+                this.initialPosition = position.clone();
+                this.life = 0;
+                
+                const geometry = new THREE.SphereGeometry(radius, 16, 12);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: COLORS.dynamic_obstacle,
+                    opacity: 0.95,
+                    transparent: true,
+                    shininess: 80,
+                    emissive: COLORS.dynamic_obstacle,
+                    emissiveIntensity: 0.1
+                });
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.copy(position);
+                this.mesh.castShadow = true;
+                this.mesh.receiveShadow = true;
+                scene.add(this.mesh);
+                
+                // 动态障碍物的预警区域
+                const warningGeometry = new THREE.SphereGeometry(radius + 1.5, 16, 12);
+                const warningMaterial = new THREE.MeshBasicMaterial({ 
+                    color: COLORS.dynamic_warning,
+                    opacity: 0.12,
+                    transparent: true,
+                    wireframe: true
+                });
+                this.warningMesh = new THREE.Mesh(warningGeometry, warningMaterial);
+                this.warningMesh.position.copy(position);
+                scene.add(this.warningMesh);
+                
+                // 方向指示器
+                const arrowGeometry = new THREE.ConeGeometry(0.4, 1.2, 8);
+                const arrowMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xffff00,
+                    emissive: 0x444400
+                });
+                this.arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+                this.arrow.position.copy(position);
+                scene.add(this.arrow);
+                
+                // 运动轨迹
+                this.trail = [];
+            }
+            
+            update(dt) {
+                this.life += dt;
+                
+                // 添加轨迹点
+                this.trail.push(this.position.clone());
+                if (this.trail.length > 15) {
+                    this.trail.shift();
+                }
+                
+                // 更新位置
+                this.position.add(this.velocity.clone().multiplyScalar(dt));
+                
+                // 智能边界反弹
+                const margin = 2;
+                if (this.position.x > 25 - margin || this.position.x < -25 + margin) {
+                    this.velocity.x *= -0.8;
+                    this.position.x = Math.max(-25 + margin, Math.min(25 - margin, this.position.x));
+                }
+                if (this.position.y > 22 || this.position.y < 2) {
+                    this.velocity.y *= -0.8;
+                    this.position.y = Math.max(2, Math.min(22, this.position.y));
+                }
+                if (this.position.z > 25 - margin || this.position.z < -25 + margin) {
+                    this.velocity.z *= -0.8;
+                    this.position.z = Math.max(-25 + margin, Math.min(25 - margin, this.position.z));
+                }
+                
+                // 添加随机扰动
+                const turbulence = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    (Math.random() - 0.5) * 0.05,
+                    (Math.random() - 0.5) * 0.1
+                );
+                this.velocity.add(turbulence);
+                
+                // 更新网格位置
+                this.mesh.position.copy(this.position);
+                this.warningMesh.position.copy(this.position);
+                
+                // 更新方向指示器
+                this.arrow.position.copy(this.position.clone().add(new THREE.Vector3(0, this.radius + 0.8, 0)));
+                if (this.velocity.length() > 0.1) {
+                    this.arrow.lookAt(this.position.clone().add(this.velocity.normalize()));
+                    this.arrow.rotateX(Math.PI / 2);
+                }
+                
+                // 材质动画
+                const pulse = Math.sin(this.life * 4) * 0.1 + 0.9;
+                this.mesh.material.emissiveIntensity = pulse * 0.15;
+                this.warningMesh.rotation.y += 0.01;
+            }
+            
+            dispose() {
+                scene.remove(this.mesh);
+                scene.remove(this.warningMesh);
+                scene.remove(this.arrow);
+                this.mesh.geometry.dispose();
+                this.mesh.material.dispose();
+                this.warningMesh.geometry.dispose();
+                this.warningMesh.material.dispose();
+                this.arrow.geometry.dispose();
+                this.arrow.material.dispose();
+            }
+        }
+        
+        // 障碍物布局配置
+        const OBSTACLE_LAYOUTS = {
+            balanced: {
+                name: '均衡布局',
+                description: '在关键路径点设置平衡的障碍物',
+                generate: (count) => {
+                    const obstacles = [
+                        // 起始区域出口屏障
+                        { pos: new THREE.Vector3(-20, 5, -18), radius: 2.5, type: 'sphere' },
+
+                        { pos: new THREE.Vector3(-12, 6, -12), radius: 2.8, type: 'sphere' },
+                        { pos: new THREE.Vector3(-15, 12, -8), radius: 2.2, type: 'box' },
+                        { pos: new THREE.Vector3(-8, 7, -8), radius: 2.5, type: 'sphere' },
+                        
+                        // 中央复杂区域
+                        { pos: new THREE.Vector3(0, 11, 0), radius: 3.2, type: 'sphere' },
+                        { pos: new THREE.Vector3(-3, 15, 3), radius: 2.0, type: 'box' },
+                        { pos: new THREE.Vector3(3, 12, -3), radius: 2.1, type: 'sphere' },
+                        
+                        // 目标区域前关卡
+                        { pos: new THREE.Vector3(12, 20, 12), radius: 2.6, type: 'sphere' },
+                        { pos: new THREE.Vector3(15, 15, 8), radius: 2.3, type: 'box' },
+                        { pos: new THREE.Vector3(8, 17, 15), radius: 2.0, type: 'sphere' },
+                        
+                        // 补充路径分割
+                        { pos: new THREE.Vector3(-8, 10, 5), radius: 1.8, type: 'sphere' },
+                        { pos: new THREE.Vector3(15, 14, -8), radius: 1.7, type: 'box' },
+                        { pos: new THREE.Vector3(-15, 16, 8), radius: 1.9, type: 'sphere' },
+                        { pos: new THREE.Vector3(18, 11, -5), radius: 1.6, type: 'sphere' },
+                        { pos: new THREE.Vector3(-12, 13, 12), radius: 1.5, type: 'box' },
+                        { pos: new THREE.Vector3(12, 19, -2), radius: 1.8, type: 'sphere' }
+                    ];
+                    return obstacles.slice(0, count);
+                }
+            },
+            
+            maze: {
+                name: '迷宫模式',
+                description: '创建迷宫式的障碍物布局',
+                generate: (count) => {
+                    const obstacles = [];
+                    const gridSize = 4;
+                    const spacing = 6;
+                    
+                    for (let x = -2; x <= 2; x++) {
+                        for (let z = -2; z <= 2; z++) {
+                            if (Math.random() > 0.4 && obstacles.length < count) {
+                                obstacles.push({
+                                    pos: new THREE.Vector3(x * spacing, 5 + Math.random() * 4, z * spacing),
+                                    radius: 1.8 + Math.random() * 0.8,
+                                    type: Math.random() > 0.5 ? 'sphere' : 'box'
+                                });
+                            }
+                        }
+                    }
+                    
+                    // 确保有足够的障碍物
+                    while (obstacles.length < count) {
+                        obstacles.push({
+                            pos: new THREE.Vector3(
+                                (Math.random() - 0.5) * 40,
+                                3 + Math.random() * 8,
+                                (Math.random() - 0.5) * 40
+                            ),
+                            radius: 1.5 + Math.random() * 1.0,
+                            type: Math.random() > 0.5 ? 'sphere' : 'box'
+                        });
+                    }
+                    
+                    return obstacles;
+                }
+            },
+            
+            corridor: {
+                name: '通道模式',
+                description: '创建狭窄通道的挑战性布局',
+                generate: (count) => {
+                    const obstacles = [];
+                    
+                    // 创建主通道的墙壁
+                    for (let i = 0; i < Math.min(count, 10); i++) {
+                        const progress = i / 9;
+                        const x = -20 + progress * 40;
+                        const side = Math.random() > 0.5 ? 1 : -1;
+                        
+                        obstacles.push({
+                            pos: new THREE.Vector3(x, 6 + Math.random() * 3, side * (8 + Math.random() * 4)),
+                            radius: 2.0 + Math.random() * 0.8,
+                            type: Math.random() > 0.6 ? 'box' : 'sphere'
+                        });
+                    }
+                    
+                    // 添加通道内的障碍物
+                    const remainingCount = count - obstacles.length;
+                    for (let i = 0; i < remainingCount; i++) {
+                        obstacles.push({
+                            pos: new THREE.Vector3(
+                                -15 + Math.random() * 30,
+                                4 + Math.random() * 6,
+                                (Math.random() - 0.5) * 12
+                            ),
+                            radius: 1.2 + Math.random() * 0.6,
+                            type: Math.random() > 0.5 ? 'sphere' : 'box'
+                        });
+                    }
+                    
+                    return obstacles;
+                }
+            }
+        };
+        
+        // 初始化场景
+        function initScene() {
+            try {
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x0a0a0a);
+                scene.fog = new THREE.Fog(0x0a0a0a, 50, 100);
+                
+                // 相机设置
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.set(55, 25, 55);
+                camera.lookAt(0, 0, 0);
+                
+                // 渲染器配置
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                renderer.toneMappingExposure = 1.2;
+                
+                const container = document.getElementById('container');
+                if (container) {
+                    container.appendChild(renderer.domElement);
+                } else {
+                    throw new Error('找不到容器元素');
+                }
+                
+                // 高级光照系统
+                setupLighting();
+                
+                // 创建环境
+                createEnvironment();
+                
+                // 初始化组件
+                initDrones();
+                initStaticObstacles();
+                createZoneMarkers();
+                
+                console.log('场景初始化完成');
+                
+            } catch (error) {
+                console.error('场景初始化失败:', error);
+                throw error;
+            }
+        }
+        
+        function setupLighting() {
+            // 环境光
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            // 主方向光
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(50, 50, 50);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 500;
+            directionalLight.shadow.camera.left = -50;
+            directionalLight.shadow.camera.right = 50;
+            directionalLight.shadow.camera.top = 50;
+            directionalLight.shadow.camera.bottom = -50;
+            scene.add(directionalLight);
+            
+            // 补充光源
+            const fillLight = new THREE.DirectionalLight(0x4080ff, 0.3);
+            fillLight.position.set(-30, 20, -30);
+            scene.add(fillLight);
+            
+            // 点光源（用于动态效果）
+            const pointLight = new THREE.PointLight(0xff6b35, 0.5, 30);
+            pointLight.position.set(0, 15, 0);
+            scene.add(pointLight);
+        }
+        
+        function createEnvironment() {
+            // 扩大的网格地面
+            const gridHelper = new THREE.GridHelper(120, 120, 0x333333, 0x1a1a1a);
+            gridHelper.material.opacity = 0.5;
+            gridHelper.material.transparent = true;
+            scene.add(gridHelper);
+            
+            // 扩大的地面
+            const groundGeometry = new THREE.PlaneGeometry(120, 120);
+            const groundMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x1a1a1a, 
+                transparent: true, 
+                opacity: 0.8 
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // 移除边界墙，让空间更开放
+            // createBoundaryWalls();
+        }
+        
+        function createBoundaryWalls() {
+            // 注释掉边界墙创建代码
+            // const wallMaterial = new THREE.MeshPhongMaterial({ 
+            //     color: 0x333333, 
+            //     transparent: true, 
+            //     opacity: 0.3 
+            // });
+            
+            // const wallHeight = 25;
+            // const wallThickness = 0.5;
+            // const boundarySize = 30;
+            
+            // 四面墙
+            // const walls = [
+            //     { pos: [boundarySize, wallHeight/2, 0], size: [wallThickness, wallHeight, boundarySize*2] },
+            //     { pos: [-boundarySize, wallHeight/2, 0], size: [wallThickness, wallHeight, boundarySize*2] },
+            //     { pos: [0, wallHeight/2, boundarySize], size: [boundarySize*2, wallHeight, wallThickness] },
+            //     { pos: [0, wallHeight/2, -boundarySize], size: [boundarySize*2, wallHeight, wallThickness] }
+            // ];
+            
+            // walls.forEach(wall => {
+            //     const geometry = new THREE.BoxGeometry(...wall.size);
+            //     const mesh = new THREE.Mesh(geometry, wallMaterial);
+            //     mesh.position.set(...wall.pos);
+            //     mesh.receiveShadow = true;
+            //     scene.add(mesh);
+            // });
+        }
+        
+        function createZoneMarkers() {
+            // 起始区域标记
+            const startGeometry = new THREE.CylinderGeometry(6, 6, 0.2, 32);
+            const startMaterial = new THREE.MeshPhongMaterial({ 
+                color: COLORS.start_zone, 
+                transparent: true, 
+                opacity: 0.3,
+                emissive: COLORS.start_zone,
+                emissiveIntensity: 0.1
+            });
+            startZoneMarker = new THREE.Mesh(startGeometry, startMaterial);
+            startZoneMarker.position.set(-35, 0.1, -25);
+            scene.add(startZoneMarker);
+            
+            // 目标区域标记
+            const targetGeometry = new THREE.CylinderGeometry(6, 6, 0.2, 32);
+            const targetMaterial = new THREE.MeshPhongMaterial({ 
+                color: COLORS.target_zone, 
+                transparent: true, 
+                opacity: 0.3,
+                emissive: COLORS.target_zone,
+                emissiveIntensity: 0.1
+            });
+            targetZoneMarker = new THREE.Mesh(targetGeometry, targetMaterial);
+            targetZoneMarker.position.set(35, 0.1, 25);
+            scene.add(targetZoneMarker);
+        }
+        
+        function initDrones() {
+            const count = parseInt(document.getElementById('droneSlider').value);
+            
+            // 清除现有无人机
+            for (let drone of drones) {
+                scene.remove(drone.geometry);
+                scene.remove(drone.trajectoryLine);
+                scene.remove(drone.predictionLine);
+                scene.remove(drone.targetIndicator);
+                scene.remove(drone.targetLine);
+            }
+            drones = [];
+            
+            // 起始和目标区域定义 - 扩大区域范围
+            const startZone = { center: new THREE.Vector3(-35, 4, -25), radius: 8 };
+            const targetZone = { center: new THREE.Vector3(35, 20, 25), radius: 8 };
+            
+            for (let i = 0; i < count; i++) {
+                // 在起始区域内分布
+                const angle = (i * 2 * Math.PI) / count;
+                const startRadius = Math.random() * startZone.radius;
+                const startPos = new THREE.Vector3(
+                    startZone.center.x + Math.cos(angle) * startRadius,
+                    startZone.center.y + Math.random() * 3,
+                    startZone.center.z + Math.sin(angle) * startRadius
+                );
+                
+                // 在目标区域内分布
+                const targetAngle = angle + Math.PI + (Math.random() - 0.5) * 0.8;
+                const targetRadius = Math.random() * targetZone.radius;
+                const targetPos = new THREE.Vector3(
+                    targetZone.center.x + Math.cos(targetAngle) * targetRadius,
+                    targetZone.center.y + Math.random() * 3,
+                    targetZone.center.z + Math.sin(targetAngle) * targetRadius
+                );
+                
+                const drone = new Drone(i, startPos, targetPos);
+                drones.push(drone);
+            }
+        }
+        
+        function initStaticObstacles() {
+            const count = parseInt(document.getElementById('staticObstacleSlider').value);
+            
+            // 清除现有障碍物
+            clearStaticObstacles();
+            
+            // 根据当前布局类型生成障碍物
+            const layout = OBSTACLE_LAYOUTS[obstacleLayoutType];
+            const obstacleConfigs = layout.generate(count);
+            
+            for (let config of obstacleConfigs) {
+                const obstacle = new StaticObstacle(config.pos, config.radius, config.type);
+                staticObstacles.push(obstacle);
+            }
+        }
+        
+        function clearStaticObstacles() {
+            for (let obstacle of staticObstacles) {
+                obstacle.dispose();
+            }
+            staticObstacles = [];
+        }
+        
+        function clearDynamicObstacles() {
+            for (let obstacle of dynamicObstacles) {
+                obstacle.dispose();
+            }
+            dynamicObstacles = [];
+            updateDynamicObstacleCount();
+        }
+        
+        // 仿真主循环
+        function animate() {
+            if (!isRunning) return;
+            
+            const currentTime = performance.now();
+            const dt = 0.02; // 50Hz 固定时间步长
+            simulationTime += dt;
+            
+            // FPS计算
+            frameCount++;
+            if (currentTime - lastTime >= 1000) {
+                fps = Math.round(frameCount * 1000 / (currentTime - lastTime));
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            // 更新无人机
+            for (let drone of drones) {
+                if (!drone.reached) {
+                    drone.computeDMPCControl(dt);
+                }
+            }
+            
+            // 更新动态障碍物
+            for (let obstacle of dynamicObstacles) {
+                obstacle.update(dt);
+            }
+            
+            // 更新区域标记动画
+            if (startZoneMarker) {
+                startZoneMarker.rotation.y += 0.005;
+                startZoneMarker.material.emissiveIntensity = 0.1 + Math.sin(simulationTime * 2) * 0.05;
+            }
+            if (targetZoneMarker) {
+                targetZoneMarker.rotation.y -= 0.005;
+                targetZoneMarker.material.emissiveIntensity = 0.1 + Math.cos(simulationTime * 2) * 0.05;
+            }
+            
+            // 更新相机
+            updateCamera();
+            
+            // 更新UI
+            updateUI();
+            
+            // 渲染
+            renderer.render(scene, camera);
+            
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        function updateCamera() {
+            if (autoRotate) {
+                cameraAngle += 0.003;
+            }
+            
+            camera.position.x = Math.cos(cameraAngle) * cameraDistance;
+            camera.position.z = Math.sin(cameraAngle) * cameraDistance;
+            camera.position.y = cameraHeight;
+            camera.lookAt(0, 8, 0);
+        }
+        
+        function updateUI() {
+            try {
+                // 基本信息更新
+                const simTimeElement = document.getElementById('simTime');
+                const fpsElement = document.getElementById('fpsIndicator');
+                
+                if (simTimeElement) simTimeElement.textContent = simulationTime.toFixed(2);
+                if (fpsElement) fpsElement.textContent = `FPS: ${fps}`;
+                
+                // 无人机状态
+                const statusDiv = document.getElementById('droneStatus');
+                if (statusDiv) {
+                    statusDiv.innerHTML = '';
+                    
+                    let totalProgress = 0;
+                    for (let drone of drones) {
+                        const distance = drone.position.distanceTo(drone.target);
+                        const speed = drone.velocity.length();
+                        const progress = drone.getProgress();
+                        totalProgress += progress;
+                        
+                        const status = drone.reached ? 'status' : 'warning';
+                        const progressColor = progress > 80 ? '#4CAF50' : progress > 50 ? '#FFC107' : '#FF5722';
+                        
+                        statusDiv.innerHTML += `
+                            <div class="drone-info" style="border-left-color: ${progressColor};">
+                                <div class="${status}">🚁 无人机 ${drone.id + 1}</div>
+                                <div>距目标: ${distance.toFixed(1)}m</div>
+                                <div>速度: ${speed.toFixed(1)}m/s</div>
+                                <div>邻居: ${drone.neighbors.length}个</div>
+                                <div>进度: ${progress.toFixed(0)}%</div>
+                                <div class="metric-bar">
+                                    <div class="metric-fill" style="width: ${progress}%; background: ${progressColor};"></div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    // 整体进度
+                    const overallProgress = totalProgress / drones.length;
+                    const progressElement = document.getElementById('overallProgress');
+                    const progressBar = document.getElementById('progressBar');
+                    
+                    if (progressElement) progressElement.textContent = overallProgress.toFixed(0);
+                    if (progressBar) progressBar.style.width = `${overallProgress}%`;
+                }
+                
+                // 性能监控
+                if (renderer && renderer.info) {
+                    const renderTimeElement = document.getElementById('renderTime');
+                    const trianglesElement = document.getElementById('triangles');
+                    const drawCallsElement = document.getElementById('drawCalls');
+                    const memoryElement = document.getElementById('memoryUsage');
+                    
+                    if (renderTimeElement) renderTimeElement.textContent = (1000/fps).toFixed(1);
+                    if (trianglesElement) trianglesElement.textContent = renderer.info.render.triangles;
+                    if (drawCallsElement) drawCallsElement.textContent = renderer.info.render.calls;
+                    if (memoryElement) {
+                        memoryElement.textContent = (renderer.info.memory.geometries * 0.1 + renderer.info.memory.textures * 0.5).toFixed(1);
+                    }
+                }
+                
+                // 环境信息
+                const windAngle = Math.atan2(windForce.z, windForce.x) * 180 / Math.PI;
+                const windDirection = getWindDirection(windAngle);
+                
+                const windDirElement = document.getElementById('windDirection');
+                const collisionElement = document.getElementById('collisionChecks');
+                const commElement = document.getElementById('commPackets');
+                
+                if (windDirElement) windDirElement.textContent = windDirection;
+                if (collisionElement) {
+                    collisionElement.textContent = Math.floor(drones.length * drones.length * 0.5 + staticObstacles.length * drones.length);
+                }
+                if (commElement) commElement.textContent = Math.floor(fps * drones.length * 0.4);
+                
+                // 更新动态障碍物计数
+                updateDynamicObstacleCount();
+                
+            } catch (error) {
+                console.warn('UI更新时出错:', error);
+            }
+        }
+        
+        function updateDynamicObstacleCount() {
+            try {
+                const countElement = document.getElementById('dynamicObstacleCount');
+                if (countElement) {
+                    countElement.textContent = dynamicObstacles.length;
+                }
+            } catch (error) {
+                console.warn('更新动态障碍物计数时出错:', error);
+            }
+        }
+        
+        function getWindDirection(angle) {
+            const directions = ['东', '东北', '北', '西北', '西', '西南', '南', '东南'];
+            const index = Math.round(angle / 45) % 8;
+            return directions[index < 0 ? index + 8 : index];
+        }
+        
+        // 控制函数
+        function toggleSimulation() {
+            isRunning = !isRunning;
+            const button = document.getElementById('playButton');
+            if (isRunning) {
+                button.textContent = '⏸️ 暂停';
+                animate();
+            } else {
+                button.textContent = '▶️ 开始';
+                cancelAnimationFrame(animationId);
+            }
+        }
+        
+        function resetSimulation() {
+            isRunning = false;
+            simulationTime = 0;
+            document.getElementById('playButton').textContent = '▶️ 开始';
+            
+            initDrones();
+            initStaticObstacles();
+            clearDynamicObstacles();
+        }
+        
+        function saveSnapshot() {
+            const link = document.createElement('a');
+            link.download = `drone_simulation_${Date.now()}.png`;
+            link.href = renderer.domElement.toDataURL();
+            link.click();
+        }
+        
+        function updateDroneCount() {
+            const count = document.getElementById('droneSlider').value;
+            document.getElementById('droneCount').textContent = count;
+            if (!isRunning) {
+                initDrones();
+            }
+        }
+        
+        function updateMaxSpeed() {
+            const speed = parseFloat(document.getElementById('speedSlider').value);
+            document.getElementById('maxSpeed').textContent = speed.toFixed(1);
+            dmpcParams.maxSpeed = speed;
+        }
+        
+        function updateHorizon() {
+            const horizon = parseInt(document.getElementById('horizonSlider').value);
+            document.getElementById('horizonValue').textContent = horizon;
+            dmpcParams.predictionHorizon = horizon;
+        }
+        
+        function updateSafety() {
+            const safety = parseFloat(document.getElementById('safetySlider').value);
+            document.getElementById('safetyValue').textContent = safety.toFixed(1);
+            dmpcParams.safeDistance = safety;
+        }
+        
+        function updateStaticObstacles() {
+            const count = parseInt(document.getElementById('staticObstacleSlider').value);
+            document.getElementById('staticObstacleCount').textContent = count;
+            if (!isRunning) {
+                initStaticObstacles();
+            }
+        }
+        
+        function updateWind() {
+            const windStrength = parseFloat(document.getElementById('windSlider').value);
+            document.getElementById('windValue').textContent = windStrength.toFixed(1);
+            
+            // 更新风力向量
+            const angle = simulationTime * 0.1;
+            windForce.set(
+                Math.cos(angle) * windStrength,
+                Math.sin(angle * 0.5) * windStrength * 0.3,
+                Math.sin(angle) * windStrength
+            );
+        }
+        
+        function setObstacleType(type) {
+            obstacleLayoutType = type;
+            
+            // 更新按钮状态
+            document.querySelectorAll('.obstacle-type-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.getElementById(type + 'Btn').classList.add('selected');
+            
+            if (!isRunning) {
+                initStaticObstacles();
+            }
+        }
+        
+        function addDynamicObstacle() {
+            // 智能位置选择
+            const strategicPositions = [
+                new THREE.Vector3(-8, 6, -8),   // 起始区域出口
+                new THREE.Vector3(0, 8, 0),     // 中央区域
+                new THREE.Vector3(8, 7, 8),     // 目标区域入口
+                new THREE.Vector3(-5, 5, 5),    // 侧翼路径
+                new THREE.Vector3(5, 9, -5),    // 高空路径
+                new THREE.Vector3(-12, 4, 0),   // 边缘路径
+                new THREE.Vector3(0, 6, 12),    // 绕行路径
+                new THREE.Vector3(12, 10, -8),  // 对角线路径
+                new THREE.Vector3(-10, 7, 10),  // 反向路径
+                new THREE.Vector3(6, 5, -12)    // 侧面突袭
+            ];
+            
+            const basePosition = strategicPositions[Math.floor(Math.random() * strategicPositions.length)];
+            
+            // 添加随机偏移
+            const DYNAMIC_OBSTACLE_BOUNDS = {
+                xMin: -10,
+                xMax: 25,
+                yMin: 8,
+                yMax: 22,
+                zMin: -6,
+                zMax: 6
+};
+
+            const position = basePosition.clone().add(new THREE.Vector3(
+                Math.random() * (DYNAMIC_OBSTACLE_BOUNDS.xMax - DYNAMIC_OBSTACLE_BOUNDS.xMin) + DYNAMIC_OBSTACLE_BOUNDS.xMin,
+                Math.random() * (DYNAMIC_OBSTACLE_BOUNDS.yMax - DYNAMIC_OBSTACLE_BOUNDS.yMin) + DYNAMIC_OBSTACLE_BOUNDS.yMin,
+                Math.random() * (DYNAMIC_OBSTACLE_BOUNDS.zMax - DYNAMIC_OBSTACLE_BOUNDS.zMin) + DYNAMIC_OBSTACLE_BOUNDS.zMin
+            ));
+            
+            const radius = 1.0 + Math.random() * 1.2;
+            const velocity = new THREE.Vector3(
+                (Math.random() - 0.5) * 6,
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 6
+            );
+            
+            const obstacle = new DynamicObstacle(position, radius, velocity);
+            dynamicObstacles.push(obstacle);
+            
+            // 限制动态障碍物数量
+            if (dynamicObstacles.length > 8) {
+                const oldObstacle = dynamicObstacles.shift();
+                oldObstacle.dispose();
+            }
+            
+            updateDynamicObstacleCount();
+        }
+        
+        function loadPreset(presetType) {
+            switch(presetType) {
+                case 'challenge':
+                    // 挑战模式：大量障碍物 + 动态障碍物
+                    document.getElementById('staticObstacleSlider').value = 12;
+                    updateStaticObstacles();
+                    clearDynamicObstacles();
+                    for (let i = 0; i < 4; i++) {
+                        addDynamicObstacle();
+                    }
+                    setObstacleType('maze');
+                    break;
+                    
+                case 'simple':
+                    // 简单模式：少量障碍物
+                    document.getElementById('staticObstacleSlider').value = 4;
+                    updateStaticObstacles();
+                    clearDynamicObstacles();
+                    setObstacleType('balanced');
+                    break;
+                    
+                case 'random':
+                    // 随机模式：随机数量和布局
+                    const randomCount = Math.floor(Math.random() * 10) + 3;
+                    document.getElementById('staticObstacleSlider').value = randomCount;
+                    updateStaticObstacles();
+                    clearDynamicObstacles();
+                    const randomDynamic = Math.floor(Math.random() * 4);
+                    for (let i = 0; i < randomDynamic; i++) {
+                        addDynamicObstacle();
+                    }
+                    const layouts = ['balanced', 'maze', 'corridor'];
+                    setObstacleType(layouts[Math.floor(Math.random() * layouts.length)]);
+                    break;
+            }
+            
+            // 更新滑块显示
+            document.getElementById('staticObstacleCount').textContent = document.getElementById('staticObstacleSlider').value;
+        }
+        
+        function toggleTrajectory() {
+            showTrajectory = !showTrajectory;
+            const button = document.getElementById('trajectoryBtn');
+            button.classList.toggle('active', showTrajectory);
+            
+            for (let drone of drones) {
+                drone.trajectoryLine.visible = showTrajectory;
+                drone.predictionLine.visible = showTrajectory;
+            }
+        }
+        
+        function toggleAutoRotate() {
+            autoRotate = !autoRotate;
+            const button = document.getElementById('rotateBtn');
+            button.classList.toggle('active', autoRotate);
+        }
+        
+        function toggleFormation() {
+            formationMode = !formationMode;
+            const button = document.getElementById('formationBtn');
+            button.classList.toggle('active', formationMode);
+        }
+        
+        // 鼠标控制事件
+        function onMouseDown(event) {
+            mousePressed = true;
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+            autoRotate = false;
+            
+            // 如果自动旋转被中断，更新按钮状态
+            const rotateBtn = document.getElementById('rotateBtn');
+            rotateBtn.classList.remove('active');
+        }
+        
+        function onMouseMove(event) {
+            if (!mousePressed) return;
+            
+            const deltaX = event.clientX - mouseX;
+            const deltaY = event.clientY - mouseY;
+            
+            cameraAngle += deltaX * 0.008;
+            cameraHeight += deltaY * 0.15;
+            cameraHeight = Math.max(5, Math.min(50, cameraHeight));
+            
+            mouseX = event.clientX;
+            mouseY = event.clientY;
+        }
+        
+        function onMouseUp() {
+            mousePressed = false;
+        }
+        
+        function onMouseWheel(event) {
+            event.preventDefault();
+            cameraDistance += event.deltaY * 0.02;
+            cameraDistance = Math.max(20, Math.min(100, cameraDistance));
+        }
+        
+        // 键盘快捷键
+        function onKeyDown(event) {
+            switch(event.code) {
+                case 'Space':
+                    event.preventDefault();
+                    toggleSimulation();
+                    break;
+                case 'KeyR':
+                    resetSimulation();
+                    break;
+                case 'KeyT':
+                    toggleTrajectory();
+                    break;
+                case 'KeyA':
+                    toggleAutoRotate();
+                    break;
+                case 'KeyF':
+                    toggleFormation();
+                    break;
+                case 'KeyD':
+                    addDynamicObstacle();
+                    break;
+                case 'KeyS':
+                    saveSnapshot();
+                    break;
+                case 'KeyC':
+                    clearDynamicObstacles();
+                    break;
+                case 'Digit1':
+                    loadPreset('simple');
+                    break;
+                case 'Digit2':
+                    loadPreset('challenge');
+                    break;
+                case 'Digit3':
+                    loadPreset('random');
+                    break;
+            }
+        }
+        
+        // 窗口大小调整
+        function onWindowResize() {
+            try {
+                if (camera && renderer) {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                }
+            } catch (error) {
+                console.warn('窗口大小调整时出错:', error);
+            }
+        }
+        
+        // 触摸设备支持
+        let lastTouchDistance = 0;
+        
+        function onTouchStart(event) {
+            event.preventDefault();
+            if (event.touches.length === 1) {
+                mouseX = event.touches[0].clientX;
+                mouseY = event.touches[0].clientY;
+                mousePressed = true;
+            } else if (event.touches.length === 2) {
+                const dx = event.touches[0].clientX - event.touches[1].clientX;
+                const dy = event.touches[0].clientY - event.touches[1].clientY;
+                lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+            }
+        }
+        
+        function onTouchMove(event) {
+            event.preventDefault();
+            if (event.touches.length === 1 && mousePressed) {
+                const deltaX = event.touches[0].clientX - mouseX;
+                const deltaY = event.touches[0].clientY - mouseY;
+                
+                cameraAngle += deltaX * 0.01;
+                cameraHeight += deltaY * 0.2;
+                cameraHeight = Math.max(5, Math.min(50, cameraHeight));
+                
+                mouseX = event.touches[0].clientX;
+                mouseY = event.touches[0].clientY;
+            } else if (event.touches.length === 2) {
+                const dx = event.touches[0].clientX - event.touches[1].clientX;
+                const dy = event.touches[0].clientY - event.touches[1].clientY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                const scale = distance / lastTouchDistance;
+                cameraDistance /= scale;
+                cameraDistance = Math.max(20, Math.min(100, cameraDistance));
+                
+                lastTouchDistance = distance;
+            }
+        }
+        
+        function onTouchEnd(event) {
+            event.preventDefault();
+            mousePressed = false;
+        }
+        
+        // 添加事件监听器的安全函数
+        function addEventListeners() {
+            try {
+                window.addEventListener('resize', onWindowResize);
+                window.addEventListener('mousedown', onMouseDown);
+                window.addEventListener('mousemove', onMouseMove);
+                window.addEventListener('mouseup', onMouseUp);
+                window.addEventListener('wheel', onMouseWheel, { passive: false });
+                window.addEventListener('keydown', onKeyDown);
+                
+                // 添加触摸事件监听器（如果渲染器已初始化）
+                if (renderer && renderer.domElement) {
+                    renderer.domElement.addEventListener('touchstart', onTouchStart);
+                    renderer.domElement.addEventListener('touchmove', onTouchMove);
+                    renderer.domElement.addEventListener('touchend', onTouchEnd);
+                }
+            } catch (error) {
+                console.warn('添加事件监听器时出错:', error);
+            }
+        }
+        
+        // 初始化应用
+        function initApp() {
+            try {
+                console.log('开始初始化仿真系统...');
+                
+                // 检查Three.js是否加载
+                if (typeof THREE === 'undefined') {
+                    throw new Error('Three.js库未正确加载');
+                }
+                
+                initScene();
+                
+                // 添加事件监听器
+                addEventListeners();
+                
+                // 初始化UI状态
+                const trajectoryBtn = document.getElementById('trajectoryBtn');
+                if (trajectoryBtn) {
+                    trajectoryBtn.classList.add('active');
+                }
+                
+                // 显示加载完成消息
+                setTimeout(() => {
+                    console.log('🚁 优化版多无人机DMPC仿真系统已就绪！');
+                    console.log('快捷键：空格-开始/暂停，R-重置，T-轨迹，A-自动旋转，F-编队，D-添加障碍物，C-清除动态障碍物，S-截图');
+                    console.log('数字键：1-简单模式，2-挑战模式，3-随机模式');
+                }, 1000);
+                
+                // 自动开始演示
+                setTimeout(() => {
+                    if (!isRunning) {
+                        toggleSimulation();
+                    }
+                }, 2000);
+                
+            } catch (error) {
+                console.error('初始化失败:', error);
+                
+                // 显示错误信息给用户
+                const container = document.getElementById('container');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                                    color: white; text-align: center; font-family: Arial, sans-serif;">
+                            <h2>🚫 系统初始化失败</h2>
+                            <p>错误信息: ${error.message}</p>
+                            <p>请刷新页面重试，或检查浏览器是否支持WebGL</p>
+                            <button onclick="location.reload()" style="padding: 10px 20px; margin-top: 20px; 
+                                           background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                刷新页面
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        // 性能优化：检测设备性能
+        function detectPerformance() {
+            const canvas = renderer.domElement;
+            const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+            
+            if (gl) {
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                if (debugInfo) {
+                    const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+                    const renderer_name = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                    console.log('GPU信息:', vendor, renderer_name);
+                }
+            }
+            
+            // 根据性能调整设置
+            setTimeout(() => {
+                if (fps < 30) {
+                    console.log('检测到低性能设备，正在优化设置...');
+                    renderer.shadowMap.enabled = false;
+                    scene.fog = null;
+                    
+                    // 减少粒子数量
+                    for (let drone of drones) {
+                        if (drone.trajectory.length > 100) {
+                            drone.trajectory = drone.trajectory.slice(-100);
+                        }
+                    }
+                    
+                    // 自动折叠性能面板
+                    const performancePanel = document.getElementById('performancePanel');
+                    if (performancePanel && !performancePanel.classList.contains('collapsed')) {
+                        togglePanel('performancePanel');
+                    }
+                }
+            }, 5000);
+        }
+        
+        // 启动应用（确保DOM加载完成后再执行）
+        function startApp() {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initApp);
+            } else {
+                initApp();
+            }
+        }
+        
+        // 启动应用
+        startApp();
+        
+        // 启动性能检测
+        setTimeout(detectPerformance, 3000);
+        
+        // 自动保存用户设置
+        function saveUserSettings() {
+            const settings = {
+                droneCount: document.getElementById('droneSlider').value,
+                maxSpeed: document.getElementById('speedSlider').value,
+                horizon: document.getElementById('horizonSlider').value,
+                safety: document.getElementById('safetySlider').value,
+                staticObstacles: document.getElementById('staticObstacleSlider').value,
+                wind: document.getElementById('windSlider').value,
+                layoutType: obstacleLayoutType,
+                showTrajectory: showTrajectory,
+                autoRotate: autoRotate,
+                formationMode: formationMode
+            };
+            
+            try {
+                // 由于artifacts限制，我们只能在内存中保存设置
+                window.userSettings = settings;
+            } catch (e) {
+                console.log('无法保存用户设置');
+            }
+        }
+        
+        function loadUserSettings() {
+            try {
+                const settings = window.userSettings;
+                if (settings) {
+                    document.getElementById('droneSlider').value = settings.droneCount || 4;
+                    document.getElementById('speedSlider').value = settings.maxSpeed || 3;
+                    document.getElementById('horizonSlider').value = settings.horizon || 12;
+                    document.getElementById('safetySlider').value = settings.safety || 2.5;
+                    document.getElementById('staticObstacleSlider').value = settings.staticObstacles || 6;
+                    document.getElementById('windSlider').value = settings.wind || 0.5;
+                    
+                    obstacleLayoutType = settings.layoutType || 'balanced';
+                    showTrajectory = settings.showTrajectory !== false;
+                    autoRotate = settings.autoRotate || false;
+                    formationMode = settings.formationMode || false;
+                    
+                    // 更新UI显示
+                    updateDroneCount();
+                    updateMaxSpeed();
+                    updateHorizon();
+                    updateSafety();
+                    updateStaticObstacles();
+                    updateWind();
+                    setObstacleType(obstacleLayoutType);
+                }
+            } catch (e) {
+                console.log('无法加载用户设置');
+            }
+        }
+        
+        // 页面卸载时保存设置
+        window.addEventListener('beforeunload', saveUserSettings);
+        
+        // 应用启动时加载设置
+        setTimeout(loadUserSettings, 500);
+        
+    </script>
+</body>
+</html>

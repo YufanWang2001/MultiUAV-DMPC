@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Quadrotor NMPC Controller</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a40 100%);
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            color: white;
+            width: 300px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        #info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            color: white;
+            width: 280px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        #analytics {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 20px;
+            border-radius: 12px;
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            height: 300px;
+            display: none;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #ccc;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        
+        input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        button {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        button.active {
+            background: linear-gradient(45deg, #4fc3f7 0%, #29b6f6 100%);
+        }
+        
+        .value {
+            color: #4fc3f7;
+            font-weight: bold;
+        }
+        
+        .status {
+            font-size: 12px;
+            color: #66bb6a;
+            margin-top: 5px;
+        }
+        
+        h3 {
+            margin-top: 0;
+            color: #4fc3f7;
+            font-size: 16px;
+        }
+        
+        .param-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+        }
+        
+        .param-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 8px;
+            border-radius: 6px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 250px;
+            margin-bottom: 20px;
+        }
+        
+        .chart-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .chart-tab {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .chart-tab.active {
+            background: linear-gradient(45deg, #4fc3f7 0%, #29b6f6 100%);
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .metric-title {
+            font-size: 11px;
+            color: #ccc;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+        
+        .performance-indicator {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .performance-excellent {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4caf50;
+        }
+        
+        .performance-good {
+            background: rgba(255, 193, 7, 0.3);
+            color: #ffc107;
+        }
+        
+        .performance-poor {
+            background: rgba(244, 67, 54, 0.3);
+            color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="controls">
+            <h3>🚁 NMPC Controller</h3>
+            
+            <div class="control-group">
+                <label>Prediction Horizon (p): <span class="value" id="horizonValue">18</span></label>
+                <input type="range" id="horizon" min="5" max="30" value="18">
+            </div>
+            
+            <div class="control-group">
+                <label>Sampling Time (Ts): <span class="value" id="tsValue">0.1</span>s</label>
+                <input type="range" id="samplingTime" min="0.05" max="0.3" step="0.05" value="0.1">
+            </div>
+            
+            <div class="control-group">
+                <label>Trajectory Scale: <span class="value" id="scaleValue">1.0</span></label>
+                <input type="range" id="trajectoryScale" min="0.5" max="2.0" step="0.1" value="1.0">
+            </div>
+            
+            <div class="control-group">
+                <label>Controller Gain Kp: <span class="value" id="kpValue">0.5</span></label>
+                <input type="range" id="kpGain" min="0.1" max="1.0" step="0.1" value="0.5">
+            </div>
+            
+            <div class="control-group">
+                <label>Controller Gain Kd: <span class="value" id="kdValue">0.1</span></label>
+                <input type="range" id="kdGain" min="0.05" max="0.5" step="0.05" value="0.1">
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="showPrediction" checked>
+                    Show Prediction Horizon
+                </label>
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="showTrail" checked>
+                    Show Trajectory Trail
+                </label>
+            </div>
+            
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="enableDisturbance">
+                    Enable Wind Disturbance
+                </label>
+            </div>
+            
+            <button onclick="startSimulation()">▶️ Start</button>
+            <button onclick="pauseSimulation()">⏸️ Pause</button>
+            <button onclick="resetSimulation()">🔄 Reset</button>
+            <button id="analyticsBtn" onclick="toggleAnalytics()">📊 Analytics</button>
+            
+            <div class="status" id="status">Ready to simulate</div>
+        </div>
+        
+        <div id="info">
+            <h3>📊 System Status</h3>
+            <div class="param-grid">
+                <div class="param-item">
+                    <div>Time: <span class="value" id="timeValue">0.0</span>s</div>
+                </div>
+                <div class="param-item">
+                    <div>Position X: <span class="value" id="posX">0.0</span></div>
+                </div>
+                <div class="param-item">
+                    <div>Position Y: <span class="value" id="posY">0.0</span></div>
+                </div>
+                <div class="param-item">
+                    <div>Position Z: <span class="value" id="posZ">0.0</span></div>
+                </div>
+                <div class="param-item">
+                    <div>Roll: <span class="value" id="rollValue">0.0</span>°</div>
+                </div>
+                <div class="param-item">
+                    <div>Pitch: <span class="value" id="pitchValue">0.0</span>°</div>
+                </div>
+                <div class="param-item">
+                    <div>Yaw: <span class="value" id="yawValue">0.0</span>°</div>
+                </div>
+                <div class="param-item">
+                    <div>Tracking Error: <span class="value" id="errorValue">0.0</span></div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 15px; font-size: 12px;">
+                <div><strong>Control Inputs:</strong></div>
+                <div>U1: <span class="value" id="u1Value">4.9</span></div>
+                <div>U2: <span class="value" id="u2Value">4.9</span></div>
+                <div>U3: <span class="value" id="u3Value">4.9</span></div>
+                <div>U4: <span class="value" id="u4Value">4.9</span></div>
+            </div>
+            
+            <div id="performanceIndicator" class="performance-indicator performance-excellent">
+                Performance: Excellent
+            </div>
+        </div>
+        
+        <div id="analytics">
+            <h3>📈 Performance Analytics</h3>
+            <div class="chart-tabs">
+                <button class="chart-tab active" onclick="showChart('trajectory')">Trajectory Comparison</button>
+                <button class="chart-tab" onclick="showChart('error')">Tracking Error</button>
+                <button class="chart-tab" onclick="showChart('control')">Control Inputs</button>
+                <button class="chart-tab" onclick="showChart('performance')">Performance Metrics</button>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="analyticsChart"></canvas>
+            </div>
+            
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-title">RMS Error</div>
+                    <div class="metric-value" id="rmsError">0.00</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Max Error</div>
+                    <div class="metric-value" id="maxError">0.00</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Settling Time</div>
+                    <div class="metric-value" id="settlingTime">0.0s</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Control Effort</div>
+                    <div class="metric-value" id="controlEffort">0.00</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Steady-State Error</div>
+                    <div class="metric-value" id="steadyStateError">0.00</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Overshoot</div>
+                    <div class="metric-value" id="overshoot">0.0%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let scene, camera, renderer, quadrotor, referenceLine, actualTrail, predictionLine;
+        let time = 0;
+        let isRunning = false;
+        let animationId;
+        let trajectoryScale = 1.0;
+        let predictionHorizon = 18;
+        let samplingTime = 0.1;
+        let kpGain = 0.5;
+        let kdGain = 0.1;
+        let enableDisturbance = false;
+        let analyticsVisible = false;
+        let chart = null;
+        let currentChart = 'trajectory';
+        
+        // Data storage for analytics
+        let trajectoryData = {
+            time: [],
+            reference: { x: [], y: [], z: [] },
+            actual: { x: [], y: [], z: [] },
+            error: [],
+            controlInputs: { u1: [], u2: [], u3: [], u4: [] },
+            performance: {
+                rmsError: 0,
+                maxError: 0,
+                settlingTime: 0,
+                controlEffort: 0,
+                steadyStateError: 0,
+                overshoot: 0
+            }
+        };
+        
+        // Quadrotor state
+        let state = {
+            x: 7, y: -10, z: 0,
+            roll: 0, pitch: 0, yaw: 0,
+            vx: 0, vy: 0, vz: 0,
+            p: 0, q: 0, r: 0
+        };
+        
+        let controlInputs = {u1: 4.9, u2: 4.9, u3: 4.9, u4: 4.9};
+        let trailPoints = [];
+        let disturbanceX = 0, disturbanceY = 0, disturbanceZ = 0;
+        
+        // Initialize the scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1a);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(20, 20, 20);
+            camera.lookAt(0, 0, 0);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(50, 50, 50);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            // Create quadrotor
+            createQuadrotor();
+            
+            // Create reference trajectory
+            createReferenceTrajectory();
+            
+            // Create trail for actual trajectory
+            createTrail();
+            
+            // Create prediction horizon visualization
+            createPredictionLine();
+            
+            // Add grid
+            const gridHelper = new THREE.GridHelper(40, 40, 0x444444, 0x222222);
+            scene.add(gridHelper);
+            
+            // Add coordinate axes
+            const axesHelper = new THREE.AxesHelper(5);
+            scene.add(axesHelper);
+            
+            // Setup event listeners
+            setupEventListeners();
+            
+            // Start render loop
+            animate();
+        }
+        
+        function createQuadrotor() {
+            quadrotor = new THREE.Group();
+            
+            // Main body
+            const bodyGeometry = new THREE.BoxGeometry(0.8, 0.8, 0.2);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0x333333 });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            quadrotor.add(body);
+            
+            // Arms
+            const armGeometry = new THREE.CylinderGeometry(0.05, 0.05, 2);
+            const armMaterial = new THREE.MeshPhongMaterial({ color: 0x666666 });
+            
+            // Four arms
+            for (let i = 0; i < 4; i++) {
+                const arm = new THREE.Mesh(armGeometry, armMaterial);
+                const angle = (i * Math.PI) / 2;
+                arm.position.set(Math.cos(angle) * 0.8, 0, Math.sin(angle) * 0.8);
+                arm.rotation.z = angle;
+                quadrotor.add(arm);
+                
+                // Propellers
+                const propGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.02);
+                const propMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x00ff00, 
+                    transparent: true, 
+                    opacity: 0.7 
+                });
+                const propeller = new THREE.Mesh(propGeometry, propMaterial);
+                propeller.position.set(Math.cos(angle) * 1.3, 0.2, Math.sin(angle) * 1.3);
+                quadrotor.add(propeller);
+            }
+            
+            scene.add(quadrotor);
+            updateQuadrotorPosition();
+        }
+        
+        function createReferenceTrajectory() {
+            const points = [];
+            const colors = [];
+            
+            for (let t = 0; t <= 20; t += 0.1) {
+                const ref = getReference(t);
+                points.push(new THREE.Vector3(ref.x, ref.z, ref.y));
+                colors.push(1, 0.2, 0.2); // Red color for reference
+            }
+            
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            
+            const material = new THREE.LineBasicMaterial({ 
+                vertexColors: true,
+                linewidth: 3
+            });
+            
+            referenceLine = new THREE.Line(geometry, material);
+            scene.add(referenceLine);
+        }
+        
+        function createTrail() {
+            actualTrail = new THREE.Group();
+            scene.add(actualTrail);
+        }
+        
+        function createPredictionLine() {
+            const geometry = new THREE.BufferGeometry();
+            const material = new THREE.LineBasicMaterial({ 
+                color: 0x00ffff,
+                linewidth: 2,
+                transparent: true,
+                opacity: 0.7
+            });
+            
+            predictionLine = new THREE.Line(geometry, material);
+            scene.add(predictionLine);
+        }
+        
+        function getReference(t) {
+            const scale = trajectoryScale;
+            return {
+                x: 6 * scale * Math.sin(t / 3),
+                y: -6 * scale * Math.sin(t / 3) * Math.cos(t / 3),
+                z: 6 * scale * Math.cos(t / 3)
+            };
+        }
+        
+        function updateQuadrotorPosition() {
+            quadrotor.position.set(state.x, state.z, state.y);
+            quadrotor.rotation.set(state.pitch, state.yaw, state.roll);
+        }
+        
+        function updatePredictionHorizon() {
+            if (!document.getElementById('showPrediction').checked) {
+                predictionLine.visible = false;
+                return;
+            }
+            
+            predictionLine.visible = true;
+            const points = [];
+            
+            // Simple prediction based on current state and reference
+            for (let i = 0; i < predictionHorizon; i++) {
+                const futureTime = time + i * samplingTime;
+                const ref = getReference(futureTime);
+                
+                // Simplified prediction - actual NMPC would solve optimization
+                const alpha = Math.min(1.0, i * 0.1);
+                const predX = state.x + alpha * (ref.x - state.x);
+                const predY = state.y + alpha * (ref.y - state.y);
+                const predZ = state.z + alpha * (ref.z - state.z);
+                
+                points.push(new THREE.Vector3(predX, predZ, predY));
+            }
+            
+            predictionLine.geometry.setFromPoints(points);
+        }
+        
+        function updateTrail() {
+            if (!document.getElementById('showTrail').checked) {
+                actualTrail.visible = false;
+                return;
+            }
+            
+            actualTrail.visible = true;
+            trailPoints.push(new THREE.Vector3(state.x, state.z, state.y));
+            
+            // Keep only last 100 points
+            if (trailPoints.length > 100) {
+                trailPoints.shift();
+            }
+            
+            // Clear existing trail
+            while (actualTrail.children.length > 0) {
+                actualTrail.remove(actualTrail.children[0]);
+            }
+            
+            // Create new trail
+            if (trailPoints.length > 1) {
+                const geometry = new THREE.BufferGeometry().setFromPoints(trailPoints);
+                const material = new THREE.LineBasicMaterial({ 
+                    color: 0x0066ff,
+                    linewidth: 2
+                });
+                const trail = new THREE.Line(geometry, material);
+                actualTrail.add(trail);
+            }
+        }
+        
+        function updateDisturbance() {
+            if (enableDisturbance) {
+                disturbanceX = 0.5 * Math.sin(time * 2) * Math.random() * 0.5;
+                disturbanceY = 0.3 * Math.cos(time * 1.5) * Math.random() * 0.5;
+                disturbanceZ = 0.2 * Math.sin(time * 3) * Math.random() * 0.3;
+            } else {
+                disturbanceX = disturbanceY = disturbanceZ = 0;
+            }
+        }
+        
+        function simulateNMPC() {
+            if (!isRunning) return;
+            
+            // Update disturbance
+            updateDisturbance();
+            
+            // Get reference trajectory
+            const ref = getReference(time);
+            
+            // NMPC simulation with PD control
+            const ex = ref.x - state.x;
+            const ey = ref.y - state.y;
+            const ez = ref.z - state.z;
+            
+            // PD control with disturbance
+            state.vx += kpGain * ex - kdGain * state.vx + disturbanceX;
+            state.vy += kpGain * ey - kdGain * state.vy + disturbanceY;
+            state.vz += kpGain * ez - kdGain * state.vz + disturbanceZ;
+            
+            // Integrate position
+            state.x += state.vx * samplingTime;
+            state.y += state.vy * samplingTime;
+            state.z += state.vz * samplingTime;
+            
+            // Simple attitude control
+            state.pitch = Math.atan2(state.vx, 10) * 0.1;
+            state.roll = Math.atan2(state.vy, 10) * 0.1;
+            
+            // Update control inputs
+            const thrust = 4.9 + ez * 0.5;
+            controlInputs.u1 = Math.max(0, Math.min(10, thrust + state.pitch * 0.5));
+            controlInputs.u2 = Math.max(0, Math.min(10, thrust - state.pitch * 0.5));
+            controlInputs.u3 = Math.max(0, Math.min(10, thrust + state.roll * 0.5));
+            controlInputs.u4 = Math.max(0, Math.min(10, thrust - state.roll * 0.5));
+            
+            // Store data for analytics
+            storeAnalyticsData(ref, ex, ey, ez);
+            
+            // Update time
+            time += samplingTime;
+            
+            // Update UI
+            updateUI();
+            updatePerformanceMetrics();
+            
+            // Schedule next update
+            setTimeout(simulateNMPC, samplingTime * 1000);
+        }
+        
+        function storeAnalyticsData(ref, ex, ey, ez) {
+            trajectoryData.time.push(time);
+            trajectoryData.reference.x.push(ref.x);
+            trajectoryData.reference.y.push(ref.y);
+            trajectoryData.reference.z.push(ref.z);
+            trajectoryData.actual.x.push(state.x);
+            trajectoryData.actual.y.push(state.y);
+            trajectoryData.actual.z.push(state.z);
+            
+            const error = Math.sqrt(ex * ex + ey * ey + ez * ez);
+            trajectoryData.error.push(error);
+            
+            trajectoryData.controlInputs.u1.push(controlInputs.u1);
+            trajectoryData.controlInputs.u2.push(controlInputs.u2);
+            trajectoryData.controlInputs.u3.push(controlInputs.u3);
+            trajectoryData.controlInputs.u4.push(controlInputs.u4);
+            
+            // Keep only last 200 data points
+            if (trajectoryData.time.length > 200) {
+                trajectoryData.time.shift();
+                trajectoryData.reference.x.shift();
+                trajectoryData.reference.y.shift();
+                trajectoryData.reference.z.shift();
+                trajectoryData.actual.x.shift();
+                trajectoryData.actual.y.shift();
+                trajectoryData.actual.z.shift();
+                trajectoryData.error.shift();
+                trajectoryData.controlInputs.u1.shift();
+                trajectoryData.controlInputs.u2.shift();
+                trajectoryData.controlInputs.u3.shift();
+                trajectoryData.controlInputs.u4.shift();
+            }
+        }
+        
+        function updatePerformanceMetrics() {
+            if (trajectoryData.error.length === 0) return;
+            
+            // Calculate RMS error
+            const rmsError = Math.sqrt(
+                trajectoryData.error.reduce((sum, e) => sum + e * e, 0) / trajectoryData.error.length
+            );
+            
+            // Calculate max error
+            const maxError = Math.max(...trajectoryData.error);
+            
+            // Calculate control effort
+            const controlEffort = trajectoryData.controlInputs.u1.reduce((sum, u, i) => {
+                return sum + Math.abs(u - 4.9) + Math.abs(trajectoryData.controlInputs.u2[i] - 4.9) +
+                       Math.abs(trajectoryData.controlInputs.u3[i] - 4.9) + Math.abs(trajectoryData.controlInputs.u4[i] - 4.9);
+            }, 0) / trajectoryData.controlInputs.u1.length;
+            
+            // Calculate steady-state error (last 10% of data)
+            const steadyStateStart = Math.floor(trajectoryData.error.length * 0.9);
+            const steadyStateError = trajectoryData.error.slice(steadyStateStart)
+                .reduce((sum, e) => sum + e, 0) / (trajectoryData.error.length - steadyStateStart);
+            
+            // Calculate settling time (time to reach 5% of final value)
+            let settlingTime = 0;
+            const threshold = 0.05 * maxError;
+            for (let i = trajectoryData.error.length - 1; i >= 0; i--) {
+                if (trajectoryData.error[i] > threshold) {
+                    settlingTime = trajectoryData.time[i];
+                    break;
+                }
+            }
+            
+            // Calculate overshoot
+            const overshoot = Math.max(0, (maxError - steadyStateError) / steadyStateError * 100);
+            
+            // Update performance metrics
+            trajectoryData.performance = {
+                rmsError: rmsError,
+                maxError: maxError,
+                settlingTime: settlingTime,
+                controlEffort: controlEffort,
+                steadyStateError: steadyStateError,
+                overshoot: overshoot
+            };
+            
+            // Update metrics display
+            document.getElementById('rmsError').textContent = rmsError.toFixed(2);
+            document.getElementById('maxError').textContent = maxError.toFixed(2);
+            document.getElementById('settlingTime').textContent = settlingTime.toFixed(1);
+            document.getElementById('controlEffort').textContent = controlEffort.toFixed(2);
+            document.getElementById('steadyStateError').textContent = steadyStateError.toFixed(2);
+            document.getElementById('overshoot').textContent = overshoot.toFixed(1);
+            
+            // Update performance indicator
+            updatePerformanceIndicator(rmsError, maxError, settlingTime);
+        }
+        
+        function updatePerformanceIndicator(rmsError, maxError, settlingTime) {
+            const indicator = document.getElementById('performanceIndicator');
+            
+            if (rmsError < 0.5 && maxError < 1.0 && settlingTime < 2.0) {
+                indicator.className = 'performance-indicator performance-excellent';
+                indicator.textContent = 'Performance: Excellent';
+            } else if (rmsError < 1.0 && maxError < 2.0 && settlingTime < 5.0) {
+                indicator.className = 'performance-indicator performance-good';
+                indicator.textContent = 'Performance: Good';
+            } else {
+                indicator.className = 'performance-indicator performance-poor';
+                indicator.textContent = 'Performance: Poor';
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('timeValue').textContent = time.toFixed(1);
+            document.getElementById('posX').textContent = state.x.toFixed(2);
+            document.getElementById('posY').textContent = state.y.toFixed(2);
+            document.getElementById('posZ').textContent = state.z.toFixed(2);
+            document.getElementById('rollValue').textContent = (state.roll * 180 / Math.PI).toFixed(1);
+            document.getElementById('pitchValue').textContent = (state.pitch * 180 / Math.PI).toFixed(1);
+            document.getElementById('yawValue').textContent = (state.yaw * 180 / Math.PI).toFixed(1);
+            
+            const ref = getReference(time);
+            const error = Math.sqrt(
+                Math.pow(ref.x - state.x, 2) + 
+                Math.pow(ref.y - state.y, 2) + 
+                Math.pow(ref.z - state.z, 2)
+            );
+            document.getElementById('errorValue').textContent = error.toFixed(2);
+            
+            document.getElementById('u1Value').textContent = controlInputs.u1.toFixed(1);
+            document.getElementById('u2Value').textContent = controlInputs.u2.toFixed(1);
+            document.getElementById('u3Value').textContent = controlInputs.u3.toFixed(1);
+            document.getElementById('u4Value').textContent = controlInputs.u4.toFixed(1);
+            
+            // Update charts if analytics is visible
+            if (analyticsVisible && chart) {
+                updateChart();
+            }
+        }
+        
+        function setupEventListeners() {
+            document.getElementById('horizon').addEventListener('input', (e) => {
+                predictionHorizon = parseInt(e.target.value);
+                document.getElementById('horizonValue').textContent = predictionHorizon;
+            });
+            
+            document.getElementById('samplingTime').addEventListener('input', (e) => {
+                samplingTime = parseFloat(e.target.value);
+                document.getElementById('tsValue').textContent = samplingTime;
+            });
+            
+            document.getElementById('trajectoryScale').addEventListener('input', (e) => {
+                trajectoryScale = parseFloat(e.target.value);
+                document.getElementById('scaleValue').textContent = trajectoryScale;
+                createReferenceTrajectory();
+            });
+            
+            document.getElementById('kpGain').addEventListener('input', (e) => {
+                kpGain = parseFloat(e.target.value);
+                document.getElementById('kpValue').textContent = kpGain;
+            });
+            
+            document.getElementById('kdGain').addEventListener('input', (e) => {
+                kdGain = parseFloat(e.target.value);
+                document.getElementById('kdValue').textContent = kdGain;
+            });
+            
+            document.getElementById('enableDisturbance').addEventListener('change', (e) => {
+                enableDisturbance = e.target.checked;
+            });
+            
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                
+                if (chart) {
+                    chart.resize();
+                }
+            });
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update quadrotor position
+            updateQuadrotorPosition();
+            
+            // Update prediction horizon
+            updatePredictionHorizon();
+            
+            // Update trail
+            updateTrail();
+            
+            // Camera follows quadrotor
+            camera.position.x = state.x + 20;
+            camera.position.y = state.z + 20;
+            camera.position.z = state.y + 20;
+            camera.lookAt(state.x, state.z, state.y);
+            
+            renderer.render(scene, camera);
+        }
+        
+        function toggleAnalytics() {
+            analyticsVisible = !analyticsVisible;
+            const analyticsPanel = document.getElementById('analytics');
+            const btn = document.getElementById('analyticsBtn');
+            
+            if (analyticsVisible) {
+                analyticsPanel.style.display = 'block';
+                btn.classList.add('active');
+                initializeChart();
+            } else {
+                analyticsPanel.style.display = 'none';
+                btn.classList.remove('active');
+                if (chart) {
+                    chart.destroy();
+                    chart = null;
+                }
+            }
+        }
+        
+        function showChart(chartType) {
+            // Update tab appearance
+            document.querySelectorAll('.chart-tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            currentChart = chartType;
+            if (chart) {
+                updateChart();
+            }
+        }
+        
+        function initializeChart() {
+            const ctx = document.getElementById('analyticsChart').getContext('2d');
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: getChartData(),
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: getChartTitle(),
+                            color: '#ffffff'
+                        },
+                        legend: {
+                            labels: {
+                                color: '#ffffff'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (s)',
+                                color: '#ffffff'
+                            },
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: getYAxisLabel(),
+                                color: '#ffffff'
+                            },
+                            ticks: {
+                                color: '#ffffff'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    },
+                    elements: {
+                        line: {
+                            borderWidth: 2
+                        },
+                        point: {
+                            radius: 0
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateChart() {
+            if (!chart) return;
+            
+            chart.data = getChartData();
+            chart.options.plugins.title.text = getChartTitle();
+            chart.options.scales.y.title.text = getYAxisLabel();
+            chart.update('none');
+        }
+        
+        function getChartData() {
+            switch (currentChart) {
+                case 'trajectory':
+                    return {
+                        labels: trajectoryData.time,
+                        datasets: [
+                            {
+                                label: 'Reference X',
+                                data: trajectoryData.reference.x,
+                                borderColor: '#ff6b6b',
+                                backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                                fill: false
+                            },
+                            {
+                                label: 'Actual X',
+                                data: trajectoryData.actual.x,
+                                borderColor: '#4ecdc4',
+                                backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                                fill: false
+                            },
+                            {
+                                label: 'Reference Y',
+                                data: trajectoryData.reference.y,
+                                borderColor: '#ff9f43',
+                                backgroundColor: 'rgba(255, 159, 67, 0.1)',
+                                fill: false
+                            },
+                            {
+                                label: 'Actual Y',
+                                data: trajectoryData.actual.y,
+                                borderColor: '#54a0ff',
+                                backgroundColor: 'rgba(84, 160, 255, 0.1)',
+                                fill: false
+                            }
+                        ]
+                    };
+                    
+                case 'error':
+                    return {
+                        labels: trajectoryData.time,
+                        datasets: [
+                            {
+                                label: 'Tracking Error',
+                                data: trajectoryData.error,
+                                borderColor: '#ff6b6b',
+                                backgroundColor: 'rgba(255, 107, 107, 0.2)',
+                                fill: true
+                            }
+                        ]
+                    };
+                    
+                case 'control':
+                    return {
+                        labels: trajectoryData.time,
+                        datasets: [
+                            {
+                                label: 'U1 (Motor 1)',
+                                data: trajectoryData.controlInputs.u1,
+                                borderColor: '#ff6b6b',
+                                backgroundColor: 'rgba(255, 107, 107, 0.1)',
+                                fill: false
+                            },
+                            {
+                                label: 'U2 (Motor 2)',
+                                data: trajectoryData.controlInputs.u2,
+                                borderColor: '#4ecdc4',
+                                backgroundColor: 'rgba(78, 205, 196, 0.1)',
+                                fill: false
+                            },
+                            {
+                                label: 'U3 (Motor 3)',
+                                data: trajectoryData.controlInputs.u3,
+                                borderColor: '#ff9f43',
+                                backgroundColor: 'rgba(255, 159, 67, 0.1)',
+                                fill: false
+                            },
+                            {
+                                label: 'U4 (Motor 4)',
+                                data: trajectoryData.controlInputs.u4,
+                                borderColor: '#54a0ff',
+                                backgroundColor: 'rgba(84, 160, 255, 0.1)',
+                                fill: false
+                            }
+                        ]
+                    };
+                    
+                case 'performance':
+                    return {
+                        labels: trajectoryData.time,
+                        datasets: [
+                            {
+                                label: 'RMS Error',
+                                data: trajectoryData.time.map((_, i) => {
+                                    const slice = trajectoryData.error.slice(Math.max(0, i - 10), i + 1);
+                                    return Math.sqrt(slice.reduce((sum, e) => sum + e * e, 0) / slice.length);
+                                }),
+                                borderColor: '#ff6b6b',
+                                backgroundColor: 'rgba(255, 107, 107, 0.2)',
+                                fill: true
+                            },
+                            {
+                                label: 'Control Effort',
+                                data: trajectoryData.time.map((_, i) => {
+                                    return Math.abs(trajectoryData.controlInputs.u1[i] - 4.9) +
+                                           Math.abs(trajectoryData.controlInputs.u2[i] - 4.9) +
+                                           Math.abs(trajectoryData.controlInputs.u3[i] - 4.9) +
+                                           Math.abs(trajectoryData.controlInputs.u4[i] - 4.9);
+                                }),
+                                borderColor: '#4ecdc4',
+                                backgroundColor: 'rgba(78, 205, 196, 0.2)',
+                                fill: true,
+                                yAxisID: 'y1'
+                            }
+                        ]
+                    };
+                    
+                default:
+                    return { labels: [], datasets: [] };
+            }
+        }
+        
+        function getChartTitle() {
+            switch (currentChart) {
+                case 'trajectory':
+                    return 'Trajectory Comparison: Reference vs Actual';
+                case 'error':
+                    return 'Tracking Error Over Time';
+                case 'control':
+                    return 'Control Inputs (Motor Commands)';
+                case 'performance':
+                    return 'Performance Metrics Over Time';
+                default:
+                    return 'Chart';
+            }
+        }
+        
+        function getYAxisLabel() {
+            switch (currentChart) {
+                case 'trajectory':
+                    return 'Position (m)';
+                case 'error':
+                    return 'Error (m)';
+                case 'control':
+                    return 'Control Input';
+                case 'performance':
+                    return 'Metric Value';
+                default:
+                    return 'Value';
+            }
+        }
+        
+        function startSimulation() {
+            isRunning = true;
+            document.getElementById('status').textContent = 'Running NMPC simulation...';
+            simulateNMPC();
+        }
+        
+        function pauseSimulation() {
+            isRunning = false;
+            document.getElementById('status').textContent = 'Simulation paused';
+        }
+        
+        function resetSimulation() {
+            isRunning = false;
+            time = 0;
+            state = {
+                x: 7, y: -10, z: 0,
+                roll: 0, pitch: 0, yaw: 0,
+                vx: 0, vy: 0, vz: 0,
+                p: 0, q: 0, r: 0
+            };
+            controlInputs = {u1: 4.9, u2: 4.9, u3: 4.9, u4: 4.9};
+            trailPoints = [];
+            
+            // Clear analytics data
+            trajectoryData = {
+                time: [],
+                reference: { x: [], y: [], z: [] },
+                actual: { x: [], y: [], z: [] },
+                error: [],
+                controlInputs: { u1: [], u2: [], u3: [], u4: [] },
+                performance: {
+                    rmsError: 0,
+                    maxError: 0,
+                    settlingTime: 0,
+                    controlEffort: 0,
+                    steadyStateError: 0,
+                    overshoot: 0
+                }
+            };
+            
+            // Clear trail
+            while (actualTrail.children.length > 0) {
+                actualTrail.remove(actualTrail.children[0]);
+            }
+            
+            // Reset performance indicator
+            const indicator = document.getElementById('performanceIndicator');
+            indicator.className = 'performance-indicator performance-excellent';
+            indicator.textContent = 'Performance: Excellent';
+            
+            document.getElementById('status').textContent = 'Simulation reset';
+            updateUI();
+        }
+        
+        // Initialize the application
+        init();
+    </script>
+</body>
+</html>
