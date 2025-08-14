@@ -1,0 +1,13 @@
+{
+  "title": "Master's Thesis",
+  "author": "Yufan Wang",
+  "university": "Technical University of Denmark",
+  "supervisors": [Sarah Renée Ruep, Radheshyam Singh],
+  "main_tex": "(Main file not detected)",
+  "bib_files": [],
+  "matlab_entry_scripts": [
+    "Codes for Thesis/MultiUAV_ET_DMPC_CasADi_run.m",
+    "Codes for Thesis/run_dmpc_simulation3_0.m"
+  ],
+  "generated_at": "2025-08-14"
+}

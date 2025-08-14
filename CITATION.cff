@@ -1,0 +1,13 @@
+cff-version: "1.2.0"
+message: "If you use this work, please cite it as below."
+title: "Cooperative Path Planning and Collision Avoidance for Multi-UAV Systems in Dynamic Environments"
+authors:
+  - family-names: "Wang"
+    given-names: "Yufan"
+    name-particle: ""
+date-released: "2025-08-14"
+version: "3.0.0"
+type: "thesis"
+thesis-type: "Master's thesis"
+institution: "Technical University of Denmark"
+year: 2025

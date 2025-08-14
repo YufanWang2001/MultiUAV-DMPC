@@ -1,0 +1,42 @@
+# LaTeX
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.dvi
+*.fdb_latexmk
+*.fls
+*.glg
+*.glo
+*.gls
+*.idx
+*.ilg
+*.ind
+*.ist
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex*
+*.toc
+*.vrb
+*.xdv
+*_minted*
+._*
+*.pdf
+
+# MATLAB
+*.asv
+*.mat
+*.mex*
+*.slxc
+*.slprj/
+*.autosave/
+*.mlx
+
+# OS
+.DS_Store
+Thumbs.db
